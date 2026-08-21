@@ -1,0 +1,38 @@
+import { Type } from "class-transformer";
+import {
+  IsIn,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Length,
+  MaxLength,
+  Min,
+} from "class-validator";
+
+export class TransferDto {
+  @IsString()
+  to_user_id!: string;
+
+  @IsIn(["SALE", "HANDOFF"])
+  transfer_kind!: "SALE" | "HANDOFF";
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  price_lkr?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
+}
+
+export class RecipientsQuery {
+  // Optional; empty means "list all allowed recipients". Min length enforced
+  // only when a search term is actually given.
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  q?: string;
+}
