@@ -1,0 +1,16 @@
+node_modules/
+dist/
+*.log
+.env
+.env.*
+build/
+.dart_tool/
+.idea/
+.vscode/
+
+# Local portable tooling (large zips + extracted dirs)
+tools/*.zip
+tools/pgsql/
+tools/pgdata/
+tools/flutter/
+tools/pg.log
