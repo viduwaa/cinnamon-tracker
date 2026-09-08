@@ -1,10 +1,12 @@
+import "dart:async";
+
 import "package:flutter/material.dart";
 import "package:flutter_riverpod/flutter_riverpod.dart";
 import "package:go_router/go_router.dart";
 import "../../app/theme.dart";
-import "../../core/auth/auth_state.dart";
+import "../../core/data/repositories.dart";
+import "../../core/sync/sync_worker.dart";
 import "../../core/widgets/ct_widgets.dart";
-import "../home/home_screen.dart";
 
 /// Sri Lankan districts → 2-letter area codes (bundled lookup).
 const _districts = [
@@ -82,39 +84,26 @@ class _FarmWizardScreenState extends ConsumerState<FarmWizardScreen> {
       _error = null;
     });
     try {
-      final api = ref.read(apiClientProvider);
-      await api.post("/farms", body: {
-        "id": _uuidv7(),
-        "name": _nameCtrl.text.trim(),
-        "area_code": _areaCode,
-        "size_value": size,
-        "size_unit": _unit,
-        "lat": double.tryParse(_latCtrl.text),
-        "lng": double.tryParse(_lngCtrl.text),
-        "address_text":
-            _addrCtrl.text.trim().isEmpty ? null : _addrCtrl.text.trim(),
-      });
-      ref.invalidate(farmsProvider);
+      // Offline-first: the farm row is stored locally (syncState LOCAL) and
+      // queued in the outbox; the SyncWorker pushes it when online.
+      await ref.read(farmsRepoProvider).saveFarmDraft(
+            name: _nameCtrl.text.trim(),
+            areaCode: _areaCode!,
+            sizeValue: size,
+            sizeUnit: _unit,
+            lat: double.tryParse(_latCtrl.text),
+            lng: double.tryParse(_lngCtrl.text),
+            addressText:
+                _addrCtrl.text.trim().isEmpty ? null : _addrCtrl.text.trim(),
+          );
+      // Kick the drain so an online device syncs immediately.
+      unawaited(ref.read(syncWorkerProvider).drain());
       if (mounted) context.go("/home");
-    } catch (e) {
-      setState(() => _error = "Could not save. Check your connection.");
+    } catch (_) {
+      setState(() => _error = "Could not save. Please try again.");
     } finally {
       if (mounted) setState(() => _saving = false);
     }
-  }
-
-  String _uuidv7() {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final rand = List<int>.generate(10, (_) => DateTime.now().microsecond % 256);
-    final b = <int>[
-      (now >> 40) & 0xff, (now >> 32) & 0xff, (now >> 24) & 0xff,
-      (now >> 16) & 0xff, (now >> 8) & 0xff, now & 0xff,
-      ...rand,
-    ];
-    b[6] = (b[6] & 0x0f) | 0x70;
-    b[8] = (b[8] & 0x3f) | 0x80;
-    final h = b.map((x) => x.toRadixString(16).padLeft(2, "0")).join();
-    return "${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}-${h.substring(16, 20)}-${h.substring(20)}";
   }
 
   @override
@@ -124,7 +113,7 @@ class _FarmWizardScreenState extends ConsumerState<FarmWizardScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.close, color: Ct.ink),
-          onPressed: () => context.go("/home"),
+          onPressed: () => ctNavigateBack(context, fallback: "/home"),
         ),
         title: Text("Add Farm", style: text.titleLarge),
       ),

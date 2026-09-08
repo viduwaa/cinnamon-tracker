@@ -3,9 +3,19 @@ import "package:flutter_riverpod/flutter_riverpod.dart";
 import "package:go_router/go_router.dart";
 import "../../app/theme.dart";
 import "../../core/auth/auth_state.dart";
+import "../../core/data/repositories.dart";
 import "../../core/widgets/ct_widgets.dart";
-import "../home/home_screen.dart";
 import "../inbox/inbox_screen.dart";
+
+/// Mirrors the backend TRANSFER_MATRIX (plan §3.4) so this screen can explain
+/// eligibility up front instead of surfacing it as a server error later.
+const _transferMatrix = <String, List<String>>{
+  "FARMER": ["COLLECTOR", "PROCESSOR_L1"],
+  "COLLECTOR": ["COLLECTOR", "PROCESSOR_L1", "PROCESSOR_L2", "EXPORTER"],
+  "PROCESSOR_L1": ["COLLECTOR", "PROCESSOR_L2", "EXPORTER"],
+  "PROCESSOR_L2": ["COLLECTOR", "EXPORTER"],
+  "EXPORTER": [],
+};
 
 class TransferScreen extends ConsumerStatefulWidget {
   const TransferScreen({super.key, required this.batchId});
@@ -24,14 +34,41 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
   List<Map<String, dynamic>> _recipients = [];
   Map<String, dynamic>? _selected;
   String _kind = "SALE";
+  String? _roleFilter;
   bool _searching = false;
   bool _sending = false;
   String? _error;
+  /// Last query the server actually answered — lets the UI tell "still
+  /// searching" apart from "search finished, nobody matched".
+  String _searchedFor = "";
 
-  @override
-  void initState() {
-    super.initState();
-    _search("");
+  Set<String> _allowedRoles() {
+    final batchAsync = ref.read(batchByIdProvider(widget.batchId));
+    final holderRole = batchAsync.asData?.value["current_holder_role"]?.toString();
+    if (holderRole != null && _transferMatrix.containsKey(holderRole)) {
+      return (_transferMatrix[holderRole] ?? const <String>[]).toSet();
+    }
+    final activeRole = ref.read(activeRoleProvider);
+    if (_transferMatrix.containsKey(activeRole)) {
+      return (_transferMatrix[activeRole] ?? const <String>[]).toSet();
+    }
+    final auth = ref.read(authProvider);
+    final roles = auth is SignedIn ? auth.user.roles : const <String>[];
+    return {for (final r in roles) ..._transferMatrix[r] ?? const <String>[]};
+  }
+
+  /// Same thresholds as GET /transfers/recipients: 3+ characters of name,
+  /// 6+ digits of mobile. Shorter input never reaches the server.
+  (bool nameOk, bool mobileOk) _searchMode(String q) {
+    final t = q.trim();
+    final letters =
+        RegExp(r"[a-zA-Z\u0D80-\u0DFF\u0B80-\u0BFF]").allMatches(t).length;
+    final digits = t.replaceAll(RegExp(r"[^0-9]"), "");
+    final mobileOnly = t.replaceFirst(RegExp(r"^\+"), "");
+    return (
+      letters >= 3,
+      digits.length >= 6 && !RegExp(r"[a-zA-Z]").hasMatch(mobileOnly),
+    );
   }
 
   @override
@@ -43,10 +80,14 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
   }
 
   Future<void> _search(String q) async {
+    final query = q.trim();
     setState(() => _searching = true);
     try {
       final api = ref.read(apiClientProvider);
-      final data = await api.get("/transfers/recipients", query: {"q": q});
+      final data = await api.get("/transfers/recipients", query: {
+        "q": query,
+        if (_roleFilter != null) "role": _roleFilter,
+      });
       setState(() {
         _recipients =
             (data as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -54,7 +95,12 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
     } catch (_) {
       // keep previous list
     } finally {
-      if (mounted) setState(() => _searching = false);
+      if (mounted) {
+        setState(() {
+          _searching = false;
+          _searchedFor = query;
+        });
+      }
     }
   }
 
@@ -69,18 +115,34 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
     });
     try {
       final api = ref.read(apiClientProvider);
-      await api.post("/batches/${widget.batchId}/transfer", body: {
-        "to_user_id": _selected!["id"],
+      final toUserId = _selected!["id"].toString();
+      final toRole = _selected!["role"]?.toString();
+      final body = <String, dynamic>{
+        "to_user_id": toUserId,
         "transfer_kind": _kind,
         "price_lkr": _kind == "SALE" ? double.tryParse(_priceCtrl.text) : null,
         "notes": _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-      });
+      };
+      if (toRole != null) {
+        body["to_role"] = toRole;
+      }
+      await api.post("/batches/${widget.batchId}/transfer", body: body);
+      // Immediately lock the batch in local drift DB so the sender cannot sell or handover again
+      await ref.read(batchesRepoProvider).updateBatchLocalTransfer(
+        batchId: widget.batchId,
+        toUserId: toUserId,
+        toRole: toRole,
+      );
       ref.invalidate(batchesProvider);
       ref.invalidate(inboxProvider);
+      ref.invalidate(batchByIdProvider(widget.batchId));
+      try {
+        await ref.read(batchesRepoProvider).pullBatches();
+      } catch (_) {}
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text("Transfer created"),
+            content: const Text("Transfer created — batch locked in transit"),
             backgroundColor: Ct.leaf,
             behavior: SnackBarBehavior.floating,
           ),
@@ -110,11 +172,26 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
+    final query = _searchCtrl.text.trim();
+    final (nameOk, mobileOk) = _searchMode(query);
+    final searchable = nameOk || mobileOk;
+    final settled = _searchedFor == query;
+    final eligible = _allowedRoles().toList()..sort();
+
+    final batchAsync = ref.watch(batchByIdProvider(widget.batchId));
+    final batchData = batchAsync.asData?.value;
+    final batchStatus = batchData?["status"]?.toString();
+    final auth = ref.watch(authProvider);
+    final myId = auth is SignedIn ? auth.user.id : null;
+    final holderId = batchData?["current_holder_id"]?.toString();
+    final isLocked = batchStatus == "IN_TRANSIT" ||
+        (holderId != null && myId != null && holderId != myId);
+
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.close, color: Ct.ink),
-          onPressed: () => context.pop(),
+          onPressed: () => ctNavigateBack(context, fallback: "/batch/${widget.batchId}"),
         ),
         title: Text("Sell / Hand over", style: text.titleLarge),
       ),
@@ -124,8 +201,49 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (isLocked) ...[
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Ct.quillSoft,
+                    borderRadius: BorderRadius.circular(Ct.radiusSm),
+                    border: Border.all(color: Ct.cinnamon.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.lock_outline, color: Ct.cinnamon, size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          "This batch is locked (In Transit / Transferred) and cannot be transferred again.",
+                          style: text.bodyMedium?.copyWith(
+                            color: Ct.cinnamon,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               Text("Who gets it?", style: text.headlineMedium),
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
+              _Eligibility(roles: eligible),
+              // With several eligible roles, let the sender browse one
+              // receiver role at a time instead of guessing names.
+              if (eligible.length > 1) ...[
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _roleChip(null, "All"),
+                    for (final r in eligible) _roleChip(r, _roleLabel(r)),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 18),
               CtField(
                 label: "Search by mobile or name",
                 controller: _searchCtrl,
@@ -133,65 +251,125 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
                 prefix: const Icon(Icons.search, color: Ct.faded),
                 onChanged: (v) => _debounceSearch(v),
               ),
-              const SizedBox(height: 14),
-              if (_searching)
+              const SizedBox(height: 8),
+              Text(
+                "For privacy there is no full directory — people appear as you type.",
+                style: text.labelMedium?.copyWith(color: Ct.faded),
+              ),
+              const SizedBox(height: 16),
+              if (_recipients.isNotEmpty) ...[
+                if (_searching)
+                  const LinearProgressIndicator(
+                    minHeight: 2,
+                    color: Ct.cinnamon,
+                    backgroundColor: Ct.line,
+                  ),
+                const SizedBox(height: 10),
+                for (final r in _recipients)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: CtCard(
+                      onTap: isLocked ? null : () => setState(() => _selected = r),
+                      color: (_selected?["id"] == r["id"] &&
+                              _selected?["role"] == r["role"])
+                          ? Ct.leafSoft
+                          : Ct.paper,
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor: Ct.cinnamon,
+                            child: Text(
+                              r["name"].toString().isNotEmpty
+                                  ? r["name"].toString()[0].toUpperCase()
+                                  : "?",
+                              style: text.titleMedium
+                                  ?.copyWith(color: Ct.paper),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(r["name"].toString(),
+                                    style: text.titleMedium),
+                                Text(
+                                  "${_roleLabel(r["role"].toString())} · ${r["mobile"]}",
+                                  style: text.bodyMedium
+                                      ?.copyWith(color: Ct.faded),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (_selected?["id"] == r["id"] &&
+                              _selected?["role"] == r["role"])
+                            const Icon(Icons.check_circle, color: Ct.leaf),
+                        ],
+                      ),
+                    ),
+                  ),
+              ] else if (query.isEmpty)
+                CtCard(
+                  color: Ct.quillSoft,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.person_search,
+                              color: Ct.cinnamon, size: 22),
+                          const SizedBox(width: 10),
+                          Text("Find the receiver",
+                              style: text.titleMedium
+                                  ?.copyWith(color: Ct.cinnamon)),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        "Type at least 3 letters of their name, or 6+ digits of their mobile number, then pick them from the results.",
+                        style: text.bodyMedium?.copyWith(color: Ct.faded),
+                      ),
+                    ],
+                  ),
+                )
+              else if (!searchable)
+                CtCard(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.edit_note, color: Ct.faded, size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          "Keep typing — at least 3 letters of a name or 6 digits of a mobile.",
+                          style: text.bodyMedium?.copyWith(color: Ct.faded),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else if (_searching || !settled)
                 const Center(
                   child: Padding(
-                    padding: EdgeInsets.all(8),
+                    padding: EdgeInsets.all(12),
                     child:
                         CircularProgressIndicator(color: Ct.cinnamon, strokeWidth: 2.4),
                   ),
                 )
-              else if (_recipients.isEmpty)
-                CtCard(
-                  child: Text("No matching people",
-                      style: text.bodyMedium?.copyWith(color: Ct.faded)),
-                )
               else
-                Column(
-                  children: [
-                    for (final r in _recipients)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: CtCard(
-                          onTap: () => setState(() => _selected = r),
-                          color: _selected?["id"] == r["id"]
-                              ? Ct.leafSoft
-                              : Ct.paper,
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 20,
-                                backgroundColor: Ct.cinnamon,
-                                child: Text(
-                                  r["name"].toString().isNotEmpty
-                                      ? r["name"].toString()[0].toUpperCase()
-                                      : "?",
-                                  style: text.titleMedium
-                                      ?.copyWith(color: Ct.paper),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(r["name"].toString(), style: text.titleMedium),
-                                    Text(
-                                      "${_roleLabel(r["role"].toString())} · ${r["mobile"]}",
-                                      style: text.bodyMedium
-                                          ?.copyWith(color: Ct.faded),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (_selected?["id"] == r["id"])
-                                const Icon(Icons.check_circle, color: Ct.leaf),
-                            ],
-                          ),
-                        ),
+                CtCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("No one found for “$query”",
+                          style: text.titleMedium),
+                      const SizedBox(height: 4),
+                      Text(
+                        "Check the spelling, or try more digits of their mobile number. Only people allowed to receive from you are shown.",
+                        style: text.bodyMedium?.copyWith(color: Ct.faded),
                       ),
-                  ],
+                    ],
+                  ),
                 ),
               const SizedBox(height: 22),
               Text("Type", style: text.titleMedium),
@@ -234,16 +412,58 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
                 controller: _notesCtrl,
                 hint: "Paid cash on collection",
               ),
+              if (_selected != null) ...[
+                const SizedBox(height: 20),
+                CtCard(
+                  color: Ct.leafSoft,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle, color: Ct.leaf, size: 22),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          "To ${_selected!["name"]} · ${_roleLabel(_selected!["role"].toString())}",
+                          style: text.titleMedium?.copyWith(color: Ct.leaf),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               if (_error != null) ...[
                 const SizedBox(height: 16),
-                Text(_error!, style: text.bodyMedium?.copyWith(color: Ct.clay)),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Ct.claySoft,
+                    borderRadius: BorderRadius.circular(Ct.radiusSm),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline, color: Ct.clay, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _error!,
+                          style: text.bodyMedium?.copyWith(color: Ct.clay),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
               const SizedBox(height: 24),
-              CtButton(
-                label: "Confirm Transfer",
-                icon: Icons.check_circle_outline,
-                loading: _sending,
-                onPressed: _send,
+              SizedBox(
+                width: double.infinity,
+                child: CtButton(
+                  label: isLocked ? "Batch Locked" : "Confirm Transfer",
+                  icon: isLocked ? Icons.lock : Icons.check_circle_outline,
+                  enabled: !isLocked,
+                  loading: _sending,
+                  onPressed: isLocked ? null : _send,
+                ),
               ),
               const SizedBox(height: 20),
             ],
@@ -262,15 +482,83 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
     });
   }
 
-  String _roleLabel(String role) => switch (role) {
-        "FARMER" => "Farmer",
-        "PROCESSOR_L1" => "Processor L1",
-        "COLLECTOR" => "Collector",
-        "PROCESSOR_L2" => "Processor L2",
-        "EXPORTER" => "Exporter",
-        _ => role,
-      };
+  void _setRoleFilter(String? role) {
+    setState(() {
+      _roleFilter = role;
+      _recipients = [];
+      _searchedFor = "";
+    });
+    final mode = _searchMode(_searchCtrl.text);
+    if (mode.$1 || mode.$2) _debounceSearch(_searchCtrl.text);
+  }
+
+  Widget _roleChip(String? code, String label) {
+    final selected = _roleFilter == code;
+    return GestureDetector(
+      onTap: () => _setRoleFilter(code),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? Ct.cinnamon : Ct.paper,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: selected ? Ct.cinnamon : Ct.line),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: Ct.body,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: selected ? Ct.paper : Ct.ink,
+          ),
+        ),
+      ),
+    );
+  }
 }
+
+/// Sender-side copy of the role matrix: chips naming the roles allowed to
+/// receive from the current user.
+class _Eligibility extends StatelessWidget {
+  const _Eligibility({required this.roles});
+
+  final List<String> roles;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    if (roles.isEmpty) {
+      return CtCard(
+        color: Ct.claySoft,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            const Icon(Icons.flag, color: Ct.clay, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                "Export is the final step — batches you hold can no longer be transferred.",
+                style: text.bodyMedium?.copyWith(color: Ct.clay),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text("Can go to", style: text.labelMedium?.copyWith(color: Ct.faded)),
+        for (final r in roles) StatusChip(label: _roleLabel(r), color: Ct.cinnamon),
+      ],
+    );
+  }
+}
+
+String _roleLabel(String role) => ctRoleLabel(role);
 
 class _KindCard extends StatelessWidget {
   const _KindCard({

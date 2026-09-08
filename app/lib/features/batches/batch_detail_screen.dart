@@ -2,8 +2,10 @@ import "package:flutter/material.dart";
 import "package:flutter_riverpod/flutter_riverpod.dart";
 import "package:go_router/go_router.dart";
 import "../../app/theme.dart";
+import "../../core/auth/auth_state.dart";
+import "../../core/data/repositories.dart";
 import "../../core/widgets/ct_widgets.dart";
-import "../harvest/harvest_done_screen.dart";
+import "../inbox/inbox_screen.dart";
 
 /// Batch detail with the upward chain-of-custody timeline.
 class BatchDetailScreen extends ConsumerWidget {
@@ -20,7 +22,7 @@ class BatchDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Ct.ink),
-          onPressed: () => context.pop(),
+          onPressed: () => ctNavigateBack(context, fallback: "/batches"),
         ),
         title: Text("Batch", style: text.titleLarge),
       ),
@@ -28,7 +30,7 @@ class BatchDetailScreen extends ConsumerWidget {
         child: batch.when(
           loading: () =>
               const Center(child: CircularProgressIndicator(color: Ct.cinnamon)),
-          error: (_, __) => Center(
+          error: (err, stack) => Center(
             child: Text("Could not load batch", style: text.bodyMedium),
           ),
           data: (b) {
@@ -36,6 +38,20 @@ class BatchDetailScreen extends ConsumerWidget {
                 .map((e) => Map<String, dynamic>.from(e as Map))
                 .toList();
             final origin = b["origin"] as Map?;
+            final auth = ref.watch(authProvider);
+            final myId = auth is SignedIn ? auth.user.id : null;
+            final isMine =
+                myId != null && b["current_holder_id"]?.toString() == myId;
+            final canTransfer = isMine &&
+                transferableStatuses.contains(b["status"].toString());
+            final holder = b["current_holder"] as Map?;
+            final holderRole = b["current_holder_role"]?.toString() ??
+                (holder?["role"]?.toString() ?? "");
+            // The newest handover tells us whether this was a sale.
+            final lastTransfer = chain.lastWhere(
+              (e) => e["event_type"].toString() == "TRANSFERRED",
+              orElse: () => const {},
+            );
             return ListView(
               padding: const EdgeInsets.all(Ct.pad),
               children: [
@@ -69,6 +85,16 @@ class BatchDetailScreen extends ConsumerWidget {
                             StatusChip(
                               label: b["harvest_type"] == "T" ? "Trees" : "Quills",
                               color: Ct.cinnamon,
+                            ),
+                          if (isMine)
+                            StatusChip(
+                              label: "Assigned as ${ctRoleLabel(holderRole.isNotEmpty ? holderRole : "FARMER")}",
+                              color: Ct.leaf,
+                            )
+                          else if (holderRole.isNotEmpty)
+                            StatusChip(
+                              label: "With ${ctRoleLabel(holderRole)}",
+                              color: Ct.faded,
                             ),
                         ],
                       ),
@@ -117,17 +143,133 @@ class BatchDetailScreen extends ConsumerWidget {
                 else
                   _Timeline(events: chain),
                 const SizedBox(height: 24),
-                CtButton(
-                  label: "Sell / Hand over",
-                  icon: Icons.swap_horiz,
-                  onPressed: () => context.go("/transfer/$batchId"),
-                ),
-                const SizedBox(height: 12),
-                CtButton(
-                  label: "Show QR",
-                  icon: Icons.qr_code,
-                  secondary: true,
-                  onPressed: () => context.go("/qr/show/$batchId"),
+                if (canTransfer) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: CtButton(
+                      label: "Sell / Hand over",
+                      icon: Icons.swap_horiz,
+                      onPressed: () => context.push("/transfer/$batchId"),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ] else if (b["status"].toString() == "IN_TRANSIT") ...[
+                  if (isMine) ...[
+                    CtCard(
+                      color: Ct.leafSoft,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.inbox_outlined,
+                                  color: Ct.leaf, size: 22),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  "Incoming Transfer",
+                                  style: text.titleMedium?.copyWith(
+                                    color: Ct.leaf,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            "This batch was transferred to you as ${ctRoleLabel(holderRole.isNotEmpty ? holderRole : "Recipient")}. Accept it to unlock and take custody.",
+                            style: text.bodyMedium?.copyWith(color: Ct.ink),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: CtButton(
+                              label: "Accept Transfer",
+                              icon: Icons.check,
+                              onPressed: () => acceptIncoming(context, ref, batchId),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ] else ...[
+                    CtCard(
+                      color: Ct.quillSoft,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.lock_clock,
+                                  color: Ct.cinnamon, size: 22),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  "Batch Locked · In Transit",
+                                  style: text.titleMedium?.copyWith(
+                                    color: Ct.cinnamon,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            holder != null
+                                ? "Transferred to ${holder["name"]} (${ctRoleLabel(holder["role"]?.toString() ?? "")}). Waiting for the receiver to accept."
+                                : "This batch is currently in transit. Waiting for the receiver to accept.",
+                            style: text.bodyMedium?.copyWith(color: Ct.faded),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ] else if (!isMine) ...[
+                  CtCard(
+                    color: Ct.quillSoft,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.swap_horiz,
+                                color: Ct.cinnamon, size: 22),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                lastTransfer["summary"]?.toString() ??
+                                    "No longer with you",
+                                style: text.titleMedium
+                                    ?.copyWith(color: Ct.cinnamon),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          holder != null
+                              ? "Now with ${holder["name"]} (${ctRoleLabel(holder["role"]?.toString() ?? "")})."
+                              : "This batch has moved on in the chain of custody.",
+                          style:
+                              text.bodyMedium?.copyWith(color: Ct.faded),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                SizedBox(
+                  width: double.infinity,
+                  child: CtButton(
+                    label: "Show QR",
+                    icon: Icons.qr_code,
+                    secondary: true,
+                    onPressed: () => context.push("/qr/show/$batchId"),
+                  ),
                 ),
                 const SizedBox(height: 30),
               ],
@@ -242,14 +384,7 @@ class _Timeline extends StatelessWidget {
         _ => Icons.circle,
       };
 
-  String _roleLabel(String role) => switch (role) {
-        "FARMER" => "Farmer",
-        "PROCESSOR_L1" => "Processor L1",
-        "COLLECTOR" => "Collector",
-        "PROCESSOR_L2" => "Processor L2",
-        "EXPORTER" => "Exporter",
-        _ => role,
-      };
+  String _roleLabel(String role) => ctRoleLabel(role);
 
   String _fmtDate(String? iso) {
     if (iso == null) return "";

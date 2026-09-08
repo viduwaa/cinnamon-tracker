@@ -1,11 +1,14 @@
+import "dart:async";
+
 import "package:flutter/material.dart";
 import "package:flutter_riverpod/flutter_riverpod.dart";
 import "package:go_router/go_router.dart";
 import "../../app/theme.dart";
 import "../../core/auth/auth_state.dart";
+import "../../core/data/repositories.dart";
 import "../../core/domain/batch_number_generator.dart";
+import "../../core/sync/sync_worker.dart";
 import "../../core/widgets/ct_widgets.dart";
-import "../home/home_screen.dart";
 
 /// Draft state for the harvest wizard.
 class HarvestDraft {
@@ -81,32 +84,30 @@ class _HarvestWizardScreenState extends ConsumerState<HarvestWizardScreen> {
         _ => true,
       };
 
+  /// Local-first save (flutter-plan §4.4): one drift transaction allocates
+  /// the daily sequence, generates the batch number, stores the row and
+  /// queues the outbox entry. The sync worker pushes it when online.
   Future<void> _save() async {
     setState(() {
       _saving = true;
       _error = null;
     });
     try {
-      final api = ref.read(apiClientProvider);
-      final batchNo = generateBatchNo(
-        areaCode: _draft.areaCode!,
-        harvestDate: _draft.date!,
-        seq: 1,
-        farmerCode: _draft.farmerCode!,
-        type: _draft.type!,
-      );
-      final id = _uuidv7();
-      final result = await api.post("/batches", body: {
-        "id": id,
-        "farm_id": _draft.farmId,
-        "batch_no": batchNo,
-        "harvest_type": _draft.type!.code,
-        "harvest_date": _iso(_draft.date!),
-        "tree_count": _draft.treeCount,
-        "weight_kg": _draft.weightKg,
-      }) as Map<String, dynamic>;
-      ref.invalidate(batchesProvider);
-      if (mounted) context.go("/harvest/done/${result["id"]}");
+      final auth = ref.read(authProvider);
+      if (auth is! SignedIn) {
+        throw StateError("SIGNED_OUT");
+      }
+      final id = await ref.read(batchesRepoProvider).saveHarvest(
+            farmId: _draft.farmId!,
+            holderId: auth.user.id,
+            harvestDate: _draft.date!,
+            type: _draft.type!,
+            treeCount: _draft.treeCount ?? 0,
+            weightKg: _draft.weightKg ?? 0,
+          );
+      // Push immediately when online; harmless no-op queueing when not.
+      unawaited(ref.read(syncWorkerProvider).drain());
+      if (mounted) context.go("/harvest/done/$id");
     } catch (e) {
       setState(() => _error = _friendly(e));
     } finally {
@@ -116,31 +117,19 @@ class _HarvestWizardScreenState extends ConsumerState<HarvestWizardScreen> {
 
   String _friendly(Object e) {
     final s = e.toString();
-    if (s.contains("BATCH_NO_TAKEN")) {
-      return "That batch number is taken — try again (next number will be used).";
+    if (s.contains("FARM_NOT_ACTIVATED") ||
+        s.contains("FARM_NOT_FOUND")) {
+      return "This farm is still syncing. Please try again in a moment.";
     }
+    if (s.contains("SEQ_EXHAUSTED")) {
+      return "Daily harvest limit reached for this farm.";
+    }
+    if (s.contains("SIGNED_OUT")) return "Please sign in again.";
     if (s.contains("NETWORK") || s.contains("TIMEOUT")) {
-      return "No internet connection. Please try again.";
+      // Should not happen — saves are local — but stay friendly anyway.
+      return "Saved on this phone. It will sync when you're online.";
     }
     return "Could not save. Please try again.";
-  }
-
-  String _iso(DateTime d) =>
-      "${d.year.toString().padLeft(4, "0")}-${d.month.toString().padLeft(2, "0")}-${d.day.toString().padLeft(2, "0")}";
-
-  String _uuidv7() {
-    // Simple client-side UUIDv7 (timestamp-ordered) for offline id generation.
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final rand = List<int>.generate(10, (_) => DateTime.now().microsecond % 256);
-    final b = <int>[
-      (now >> 40) & 0xff, (now >> 32) & 0xff, (now >> 24) & 0xff,
-      (now >> 16) & 0xff, (now >> 8) & 0xff, now & 0xff,
-      ...rand,
-    ];
-    b[6] = (b[6] & 0x0f) | 0x70;
-    b[8] = (b[8] & 0x3f) | 0x80;
-    final h = b.map((x) => x.toRadixString(16).padLeft(2, "0")).join();
-    return "${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}-${h.substring(16, 20)}-${h.substring(20)}";
   }
 
   @override
@@ -150,7 +139,7 @@ class _HarvestWizardScreenState extends ConsumerState<HarvestWizardScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.close, color: Ct.ink),
-          onPressed: () => context.go("/home"),
+          onPressed: () => ctNavigateBack(context, fallback: "/home"),
         ),
         title: Text("New Harvest", style: text.titleLarge),
       ),
@@ -286,7 +275,7 @@ class _FarmStep extends ConsumerWidget {
         const SizedBox(height: 18),
         farms.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, __) => Text("Could not load farms", style: text.bodyMedium),
+          error: (err, stack) => Text("Could not load farms", style: text.bodyMedium),
           data: (list) => list.isEmpty
               ? CtCard(
                   color: Ct.leafSoft,
@@ -297,7 +286,7 @@ class _FarmStep extends ConsumerWidget {
                       CtButton(
                         label: "Add Farm",
                         icon: Icons.add,
-                        onPressed: () => context.go("/farm/new"),
+                        onPressed: () => context.push("/farm/new"),
                       ),
                     ],
                   ),

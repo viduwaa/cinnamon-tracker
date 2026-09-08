@@ -6,8 +6,9 @@ plugins {
 
 android {
     namespace = "com.cinnamontrace.cinnamon_trace"
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    compileSdk = 37
+    // Pinned to the locally installed NDK; sdkmanager auto-download crashes on this machine.
+    ndkVersion = "30.0.15729638"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

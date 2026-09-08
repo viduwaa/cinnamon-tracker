@@ -2,8 +2,9 @@ import "package:flutter/material.dart";
 import "package:flutter_riverpod/flutter_riverpod.dart";
 import "package:go_router/go_router.dart";
 import "../../app/theme.dart";
+import "../../core/auth/auth_state.dart";
+import "../../core/data/repositories.dart";
 import "../../core/widgets/ct_widgets.dart";
-import "../home/home_screen.dart";
 
 class BatchesScreen extends ConsumerWidget {
   const BatchesScreen({super.key});
@@ -13,12 +14,25 @@ class BatchesScreen extends ConsumerWidget {
     final batches = ref.watch(batchesProvider);
     final text = Theme.of(context).textTheme;
 
+    final activeRole = ref.watch(activeRoleProvider);
+    final auth = ref.watch(authProvider);
+    final user = auth is SignedIn ? auth.user : null;
+    final roles = user?.roles ?? const ["FARMER"];
+    final role =
+        roles.contains(activeRole) ? activeRole : (roles.firstOrNull ?? "FARMER");
+    final isFarmer = role == "FARMER";
+
     return RefreshIndicator(
-      onRefresh: () async => ref.invalidate(batchesProvider),
+      onRefresh: () async {
+        try {
+          await ref.read(batchesRepoProvider).pullBatches();
+        } catch (_) {}
+        ref.invalidate(batchesProvider);
+      },
       child: batches.when(
         loading: () =>
             const Center(child: CircularProgressIndicator(color: Ct.cinnamon)),
-        error: (_, __) => ListView(
+        error: (err, stack) => ListView(
           children: [
             const SizedBox(height: 80),
             Padding(
@@ -57,16 +71,20 @@ class BatchesScreen extends ConsumerWidget {
                           Text("No batches yet", style: text.titleMedium),
                           const SizedBox(height: 4),
                           Text(
-                            "Record your first harvest to get started.",
+                            isFarmer
+                                ? "Record your first harvest to get started."
+                                : "Batches you receive and accept from your Inbox will appear here.",
                             textAlign: TextAlign.center,
                             style: text.bodyMedium?.copyWith(color: Ct.faded),
                           ),
-                          const SizedBox(height: 16),
-                          CtButton(
-                            label: "New Batch",
-                            icon: Icons.add,
-                            onPressed: () => context.go("/harvest"),
-                          ),
+                          if (isFarmer) ...[
+                            const SizedBox(height: 16),
+                            CtButton(
+                              label: "New Batch",
+                              icon: Icons.add,
+                              onPressed: () => context.push("/harvest"),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -80,7 +98,7 @@ class BatchesScreen extends ConsumerWidget {
                   final b = list[i];
                   return _BatchRow(
                     batch: b,
-                    onTap: () => context.go("/batch/${b["id"]}"),
+                    onTap: () => context.push("/batch/${b["id"]}"),
                   );
                 },
               ),
@@ -89,28 +107,42 @@ class BatchesScreen extends ConsumerWidget {
   }
 }
 
-class _BatchRow extends StatelessWidget {
+class _BatchRow extends ConsumerWidget {
   const _BatchRow({required this.batch, required this.onTap});
 
   final Map<String, dynamic> batch;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final text = Theme.of(context).textTheme;
     final status = batch["status"].toString();
+    final auth = ref.watch(authProvider);
+    final user = auth is SignedIn ? auth.user : null;
+    final myId = user?.id;
+    final holderId = batch["current_holder_id"]?.toString();
+    final holderRole = batch["current_holder_role"]?.toString();
+    final isHeldByMe = myId != null && holderId == myId;
+
+    final roleText = (holderRole != null && holderRole.isNotEmpty)
+        ? ctRoleLabel(holderRole)
+        : "Farmer";
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: CtCard(
         onTap: onTap,
+        color: isHeldByMe ? Ct.paper : Ct.cream,
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
               width: 46,
               height: 46,
               decoration: BoxDecoration(
-                color: Ct.quillSoft,
+                color: isHeldByMe ? Ct.quillSoft : Ct.paper,
                 borderRadius: BorderRadius.circular(13),
+                border: isHeldByMe ? Border.all(color: Ct.quill.withValues(alpha: 0.3)) : null,
               ),
               child: Icon(
                 batch["harvest_type"] == "T"
@@ -125,24 +157,65 @@ class _BatchRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    batch["batch_no"].toString(),
-                    style: text.titleMedium?.copyWith(
-                      fontFamily: Ct.display,
-                      letterSpacing: 0.3,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          batch["batch_no"].toString(),
+                          style: text.titleMedium?.copyWith(
+                            fontFamily: Ct.display,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                      _chip(status),
+                    ],
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Text(
                     "${batch["weight_kg"]} kg · ${fmtDate(batch["harvest_date"]?.toString())}",
                     style: text.bodyMedium?.copyWith(color: Ct.faded),
                   ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: isHeldByMe
+                          ? Ct.leafSoft
+                          : Ct.line.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isHeldByMe ? Icons.account_circle : Icons.person_outline,
+                          size: 14,
+                          color: isHeldByMe ? Ct.leaf : Ct.faded,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          isHeldByMe
+                              ? "Assigned to you as: $roleText"
+                              : "With: $roleText",
+                          style: TextStyle(
+                            fontFamily: Ct.body,
+                            fontSize: 12,
+                            fontWeight: isHeldByMe ? FontWeight.w700 : FontWeight.w600,
+                            color: isHeldByMe ? Ct.leaf : Ct.faded,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
-            _chip(status),
             const SizedBox(width: 6),
-            const Icon(Icons.chevron_right, color: Ct.faded),
+            const Padding(
+              padding: EdgeInsets.only(top: 12),
+              child: Icon(Icons.chevron_right, color: Ct.faded),
+            ),
           ],
         ),
       ),

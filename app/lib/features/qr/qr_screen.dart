@@ -4,9 +4,8 @@ import "package:go_router/go_router.dart";
 import "package:qr_flutter/qr_flutter.dart";
 import "package:share_plus/share_plus.dart";
 import "../../app/theme.dart";
+import "../../core/data/repositories.dart";
 import "../../core/widgets/ct_widgets.dart";
-import "../harvest/harvest_done_screen.dart";
-import "../home/home_screen.dart";
 
 /// QR tab: scan entry point + quick display of your own batches.
 class QrScreen extends ConsumerWidget {
@@ -59,7 +58,7 @@ class _MyQrList extends ConsumerWidget {
     return batches.when(
       loading: () =>
           const Center(child: CircularProgressIndicator(color: Ct.cinnamon)),
-      error: (_, __) => Text("Could not load", style: text.bodyMedium),
+      error: (err, stack) => Text("Could not load", style: text.bodyMedium),
       data: (list) => list.isEmpty
           ? CtCard(
               child: Text("No batches yet", style: text.bodyMedium),
@@ -70,7 +69,7 @@ class _MyQrList extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: CtCard(
-                      onTap: () => context.go("/qr/show/${b["id"]}"),
+                      onTap: () => context.push("/qr/show/${b["id"]}"),
                       child: Row(
                         children: [
                           const Icon(Icons.qr_code, color: Ct.cinnamon, size: 30),
@@ -109,7 +108,7 @@ class QrShowScreen extends ConsumerWidget {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Ct.ink),
-          onPressed: () => context.pop(),
+          onPressed: () => ctNavigateBack(context, fallback: "/qr"),
         ),
         title: Text("Batch QR", style: text.titleLarge),
       ),
@@ -117,11 +116,15 @@ class QrShowScreen extends ConsumerWidget {
         child: batch.when(
           loading: () =>
               const Center(child: CircularProgressIndicator(color: Ct.cinnamon)),
-          error: (_, __) =>
+          error: (err, stack) =>
               Center(child: Text("Could not load", style: text.bodyMedium)),
           data: (b) {
             final batchNo = b["batch_no"].toString();
-            final verifyUrl = "https://verify.cinnamontrace.example/$batchNo";
+            const verifyBase = String.fromEnvironment(
+              "VERIFY_BASE_URL",
+              defaultValue: "https://api.viduwa.dev/cinnamontrack/verify",
+            );
+            final verifyUrl = "$verifyBase/$batchNo";
             return SingleChildScrollView(
               padding: const EdgeInsets.all(Ct.pad),
               child: Column(
