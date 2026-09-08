@@ -9,11 +9,7 @@ class ApiClient {
   ApiClient({String? baseUrl, String? Function()? tokenProvider})
       : _dio = Dio(
           BaseOptions(
-            baseUrl: baseUrl ??
-                const String.fromEnvironment(
-                  "API_BASE_URL",
-                  defaultValue: "http://localhost:3100/v1",
-                ),
+            baseUrl: baseUrl ?? activeBaseUrl,
             connectTimeout: const Duration(seconds: 15),
             receiveTimeout: const Duration(seconds: 30),
             contentType: "application/json",
@@ -22,6 +18,7 @@ class ApiClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
+          options.baseUrl = activeBaseUrl;
           final token = tokenProvider?.call();
           if (token != null && token.isNotEmpty) {
             options.headers["Authorization"] = "Bearer $token";
@@ -35,14 +32,36 @@ class ApiClient {
     );
   }
 
+  static const String defaultBaseUrl = String.fromEnvironment(
+    "API_BASE_URL",
+    defaultValue: "https://api.viduwa.dev/cinnamontrack/v1",
+  );
+
+  static String activeBaseUrl = defaultBaseUrl;
+
+  String get baseUrl => _dio.options.baseUrl;
+  set baseUrl(String url) {
+    final clean = url.trim().endsWith("/")
+        ? url.trim().substring(0, url.trim().length - 1)
+        : url.trim();
+    _dio.options.baseUrl = clean;
+    activeBaseUrl = clean;
+  }
+
   final Dio _dio;
 
   Future<dynamic> get(String path, {Map<String, dynamic>? query}) async {
     return _send(() => _dio.get(path, queryParameters: query));
   }
 
-  Future<dynamic> post(String path, {Object? body}) async {
-    return _send(() => _dio.post(path, data: body));
+  Future<dynamic> post(
+    String path, {
+    Object? body,
+    Map<String, String>? headers,
+  }) async {
+    return _send(
+      () => _dio.post(path, data: body, options: Options(headers: headers)),
+    );
   }
 
   Future<dynamic> put(String path, {Object? body}) async {

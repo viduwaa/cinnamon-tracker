@@ -17,6 +17,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   final _controller = TextEditingController();
   bool _loading = false;
   String? _error;
+  bool _invalidCode = false;
 
   @override
   void dispose() {
@@ -37,12 +38,16 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _invalidCode = false;
     });
     try {
       await ref.read(authProvider.notifier).verifyOtp(_mobile, _controller.text);
       if (mounted) context.go("/home");
     } catch (e) {
-      setState(() => _error = _friendly(e));
+      setState(() {
+        _invalidCode = e.toString().contains("OTP_INVALID");
+        _error = _friendly(e);
+      });
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -61,6 +66,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
+    // Where the code was requested: /login or /register (extra set by caller).
+    final returnTo = GoRouterState.of(context).extra as String?;
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -69,7 +76,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               IconButton(
-                onPressed: () => context.go("/register"),
+                onPressed: () => ctNavigateBack(context, fallback: returnTo ?? "/login"),
                 icon: const Icon(Icons.arrow_back, color: Ct.ink),
               ),
               const SizedBox(height: 8),
@@ -108,7 +115,10 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
                 ),
-                onChanged: (_) => setState(() => _error = null),
+                onChanged: (_) => setState(() {
+                  _error = null;
+                  _invalidCode = false;
+                }),
                 onSubmitted: (_) => _verify(),
               ),
               const Divider(),
@@ -117,6 +127,15 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                 Text(
                   _error!,
                   style: text.bodyMedium?.copyWith(color: Ct.clay),
+                ),
+              ],
+              // otp/request hides registration status by design, so an
+              // unregistered login surfaces here as repeated OTP_INVALID.
+              if (returnTo == "/login" && _invalidCode) ...[
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => context.go("/register"),
+                  child: const Text("Not registered? Create an account"),
                 ),
               ],
               const Spacer(),
@@ -131,10 +150,11 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                 label: "Resend code",
                 secondary: true,
                 onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
                   try {
                     await ref.read(authProvider.notifier).requestOtp(_mobile);
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         const SnackBar(content: Text("Code sent again")),
                       );
                     }
