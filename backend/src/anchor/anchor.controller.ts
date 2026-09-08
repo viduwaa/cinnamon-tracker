@@ -1,23 +1,22 @@
 import { Controller, Get, Post, UseGuards } from "@nestjs/common";
+import { AdminGuard } from "../auth/admin.guard";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { DatabaseService } from "../database/database.service";
 import { AnchorService } from "./anchor.service";
 
 @Controller("admin/anchors")
+@UseGuards(JwtAuthGuard, AdminGuard)
 export class AnchorController {
   constructor(
     private readonly anchor: AnchorService,
     private readonly db: DatabaseService,
   ) {}
 
-  // TODO: replace with an admin-scope guard once admin roles exist.
-  @UseGuards(JwtAuthGuard)
   @Post("run")
   run() {
     return this.anchor.runAnchor();
   }
 
-  @UseGuards(JwtAuthGuard)
   @Get()
   async list() {
     return this.db.query(

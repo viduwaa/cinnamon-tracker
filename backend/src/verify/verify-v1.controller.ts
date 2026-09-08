@@ -4,19 +4,13 @@ import { Errors } from "../common/errors";
 import { VerifyService } from "./verify.service";
 
 /**
- * Public verification portal. Served outside the /v1 prefix so QR codes can
- * point at a clean URL: https://verify.<domain>/<batchNo>
- * The same handler is mirrored under /v1/verify (verify-v1.controller.ts)
- * so the api-spec §8 contract is literally true for API clients.
- *
- * Content negotiation: browsers get a simple HTML page; API clients
- * (Accept: application/json) get JSON.
+ * Versioned mirror of the public verification endpoint so api-spec §8's
+ * `GET /v1/verify/{batchNo}` is literally true. Excluded from the global
+ * prefix in main.ts (the controller path already contains it).
  */
-// Public trust surface: a viral QR campaign must never 429 behind shared
-// carrier NAT IPs, so the portal is exempt from rate limiting.
 @SkipThrottle()
-@Controller("verify")
-export class VerifyController {
+@Controller("v1/verify")
+export class VerifyV1Controller {
   constructor(private readonly verifyService: VerifyService) {}
 
   @Get(":batchNo")

@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { Errors } from "../common/errors";
 import { DatabaseService } from "../database/database.service";
+import { verifyChain } from "../integrity";
 import { CreateBatchDto, ListBatchesQuery } from "./dto";
 import { LedgerService } from "./ledger.service";
 
@@ -51,39 +52,42 @@ export class BatchesService {
     }
 
     const harvestDate = dto.harvest_date.slice(0, 10);
-    if (harvestDate > new Date().toISOString().slice(0, 10)) {
+    // Compare against *local* today — Sri Lanka is UTC+5:30, so a UTC-based
+    // "today" rejects early-morning harvests with tomorrow-less dates.
+    if (harvestDate > this.todayInColombo()) {
       throw Errors.badRequest("FUTURE_DATE", "Harvest date cannot be in the future");
     }
 
-    await this.db.transaction(async (client) => {
-      const dup = await client.query("SELECT 1 FROM batches WHERE batch_no = $1", [
-        dto.batch_no,
-      ]);
-      if (dup.rowCount && dup.rowCount > 0) {
-        throw Errors.conflict("BATCH_NO_TAKEN", "Batch number already exists", {
-          batch_no: dto.batch_no,
-        });
-      }
+    try {
+      await this.db.transaction(async (client) => {
+        const dup = await client.query("SELECT 1 FROM batches WHERE batch_no = $1", [
+          dto.batch_no,
+        ]);
+        if ((dup.rowCount ?? 0) > 0) {
+          throw Errors.conflict("BATCH_NO_TAKEN", "Batch number already exists", {
+            batch_no: dto.batch_no,
+          });
+        }
 
-      await client.query(
-        `INSERT INTO batches
-           (id, batch_no, farm_id, harvest_type, harvest_date, tree_count,
-            weight_kg, status, current_holder_id, current_holder_role,
-            root_batch_no, stage_suffix, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'HARVESTED', $8, 'FARMER', $9, '', $10)`,
-        [
-          dto.id,
-          dto.batch_no,
-          dto.farm_id,
-          dto.harvest_type,
-          harvestDate,
-          dto.tree_count ?? null,
-          dto.weight_kg,
-          userId,
-          dto.batch_no,
-          userId,
-        ],
-      );
+        await client.query(
+          `INSERT INTO batches
+             (id, batch_no, farm_id, harvest_type, harvest_date, tree_count,
+              weight_kg, status, current_holder_id, current_holder_role,
+              root_batch_no, stage_suffix, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 'HARVESTED', $8, 'FARMER', $9, '', $10)`,
+          [
+            dto.id,
+            dto.batch_no,
+            dto.farm_id,
+            dto.harvest_type,
+            harvestDate,
+            dto.tree_count ?? null,
+            dto.weight_kg,
+            userId,
+            dto.batch_no,
+            userId,
+          ],
+        );
 
       await this.ledger.appendEvent(client, {
         batchId: dto.id,
@@ -106,7 +110,38 @@ export class BatchesService {
          VALUES ($1, $2, 'FARMER') ON CONFLICT DO NOTHING`,
         [dto.id, userId],
       );
+
+      await client.query(
+        `INSERT INTO audit_log (user_id, action, entity, entity_id, after)
+         VALUES ($1, 'BATCH_CREATED', 'batch', $2, $3::jsonb)`,
+        [
+          userId,
+          dto.id,
+          JSON.stringify({ batch_no: dto.batch_no, farm_id: dto.farm_id }),
+        ],
+      );
     });
+    } catch (err) {
+      // Recovery happens on the pool — the failed transaction is already
+      // rolled back (25P02 would reject any in-transaction recovery query).
+      if ((err as { code?: string }).code === "23505") {
+        const constraint = (err as { constraint?: string }).constraint;
+        if (constraint === "batches_pkey") {
+          // Duplicate client UUIDv7: natural idempotency — return the
+          // existing batch when it belongs to this user (lost-response retry).
+          const row = await this.db.queryOne<{ created_by: string }>(
+            "SELECT created_by FROM batches WHERE id = $1",
+            [dto.id],
+          );
+          if (row && row.created_by === userId) return this.get(userId, dto.id);
+          throw Errors.conflict("ID_TAKEN", "A batch with this id already exists");
+        }
+        throw Errors.conflict("BATCH_NO_TAKEN", "Batch number already exists", {
+          batch_no: dto.batch_no,
+        });
+      }
+      throw err;
+    }
 
     // Read after commit — get() uses the pool, which cannot see uncommitted
     // rows from the transaction above.
@@ -303,6 +338,9 @@ export class BatchesService {
       harvest_type: row.harvest_type,
       harvest_date: row.harvest_date,
       weight_kg: Number(row.weight_kg),
+      // Lets clients gate holder-only actions (transfer button) offline.
+      current_holder_id: row.current_holder_id,
+      current_holder_role: row.current_holder_role,
       root_batch_no: row.root_batch_no,
       stage_suffix: row.stage_suffix,
       created_at: row.created_at,
@@ -325,10 +363,63 @@ export class BatchesService {
         : null,
       chain: chain.events,
       origin: chain.origin,
-      verification: {
-        status: row.chain_head_hash ? "HASHED" : "PENDING",
-        chain_head_hash: row.chain_head_hash,
-      },
+      verification: await this.verificationSummary(row),
+    };
+  }
+
+  /**
+   * Verification status for the app detail view — same semantics as the
+   * public verify surface: TAMPERED when the recomputed hash chain breaks,
+   * AUTHENTIC only when every event also carries an anchor timestamp,
+   * PENDING otherwise.
+   */
+  private async verificationSummary(row: BatchRow) {
+    const events = await this.db.query<{
+      batch_id: string;
+      event_type: string;
+      actor_user_id: string;
+      actor_role: string;
+      payload: Record<string, unknown>;
+      parent_event_hash: string | null;
+      event_hash: string;
+      created_at: string;
+    }>(
+      `SELECT batch_id, event_type, actor_user_id, actor_role, payload,
+              parent_event_hash, event_hash, created_at
+       FROM batch_events WHERE batch_id = $1
+       ORDER BY created_at ASC, id ASC`,
+      [row.id],
+    );
+    const { valid } = verifyChain(
+      events.map((e) => ({
+        batchId: e.batch_id,
+        eventType: e.event_type,
+        actorUserId: e.actor_user_id,
+        actorRole: e.actor_role,
+        payload: e.payload,
+        parentEventHash: e.parent_event_hash,
+        occurredAt: new Date(e.created_at).toISOString(),
+        eventHash: e.event_hash,
+      })),
+    );
+
+    const total = events.length;
+    const anchoredCount = (
+      await this.db.queryOne<{ n: string }>(
+        "SELECT count(*)::text AS n FROM batch_events WHERE batch_id = $1 AND anchored_at IS NOT NULL",
+        [row.id],
+      )
+    )?.n;
+
+    return {
+      status: !valid
+        ? "TAMPERED"
+        : total > 0 && Number(anchoredCount ?? 0) === total
+          ? "AUTHENTIC"
+          : "PENDING",
+      anchored_events: Number(anchoredCount ?? 0),
+      total_events: total,
+      chain_head_hash: row.chain_head_hash,
     };
   }
 
@@ -338,5 +429,15 @@ export class BatchesService {
       [userId, role],
     );
     return row !== null;
+  }
+
+  /** Today's date (YYYY-MM-DD) in Asia/Colombo — the farmers' timezone. */
+  private todayInColombo(): string {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Colombo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
   }
 }

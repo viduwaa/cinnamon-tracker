@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { Errors } from "../common/errors";
+import { normalizeMobile } from "../common/phone";
 import { DatabaseService } from "../database/database.service";
 import { LedgerService } from "../batches/ledger.service";
 import { RecipientsQuery, TransferDto } from "./dto";
@@ -18,6 +19,17 @@ export const TRANSFER_MATRIX: Record<string, string[]> = {
 
 const TRANSFERABLE_STATUSES = ["HARVESTED", "RECEIVED", "PROCESSED"];
 
+/** Escape LIKE wildcards so user input can only match as a literal prefix. */
+function escapeLike(input: string): string {
+  return input.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
+/** Keep the leading country code and last 4 digits; mask the rest. */
+function maskMobile(mobile: string): string {
+  if (mobile.length <= 6) return "*".repeat(mobile.length);
+  return `${mobile.slice(0, mobile.length - 8)}****${mobile.slice(-4)}`;
+}
+
 interface BatchLite {
   id: string;
   batch_no: string;
@@ -35,16 +47,40 @@ export class TransfersService {
     private readonly ledger: LedgerService,
   ) {}
 
-  /** Recipient lookup filtered to roles the sender may transfer to. */
+  /**
+   * Recipient lookup filtered to roles the sender may transfer to.
+   * Privacy (PLAN §6): no directory enumeration. Empty/short queries return
+   * nothing; matching is prefix-only, capped, and mobile numbers are masked
+   * unless the caller typed an exact full mobile number.
+   */
   async recipients(userId: string, query: RecipientsQuery) {
     const senderRoles = await this.getRoles(userId);
     const allowed = new Set<string>();
     for (const role of senderRoles) {
       for (const target of TRANSFER_MATRIX[role] ?? []) allowed.add(target);
     }
+    // An explicit role filter narrows an already-allowed set; anything else
+    // is silently empty rather than an error surface for probing.
+    if (query.role) {
+      if (!allowed.has(query.role)) return [];
+      allowed.clear();
+      allowed.add(query.role);
+    }
     if (allowed.size === 0) return [];
 
-    const q = query.q ?? "";
+    const q = (query.q ?? "").trim();
+    const digits = q.replace(/\D/g, "");
+    // Meaningful search only: ≥3 characters for names (Latin, Sinhala or
+    // Tamil), or ≥6 digits typed for a mobile. Anything less returns
+    // nothing rather than the directory.
+    const isNameSearch =
+      /[a-zA-Z\u0D80-\u0DFF\u0B80-\u0BFF]/.test(q) && q.length >= 3;
+    const isMobileSearch = digits.length >= 6 && !/[a-zA-Z]/.test(q.replace(/^\+/, ""));
+    if (!q || (!isNameSearch && !isMobileSearch)) return [];
+    // Mobiles are stored as typed at registration (077… and +9477… both
+    // exist), so match on the trailing digits — format-agnostic.
+    const exactMobile = isMobileSearch && this.normalizeMobile(q).length >= 11;
+
     const rows = await this.db.query<{
       id: string;
       name: string;
@@ -56,12 +92,33 @@ export class TransfersService {
        JOIN user_roles ur ON ur.user_id = u.id
        WHERE u.id <> $1
          AND ur.role = ANY($2::role_code[])
-         AND ($3 = '' OR u.mobile ILIKE $4 OR u.name ILIKE $4)
+         AND (
+           ($3::text IS NOT NULL AND
+              right(regexp_replace(u.mobile, '[^0-9]', '', 'g'), 9) = right($3, 9))
+           OR
+           ($4::text IS NOT NULL AND u.name ILIKE $4)
+         )
        ORDER BY u.name
-       LIMIT 20`,
-      [userId, Array.from(allowed), q, `%${q}%`],
+       LIMIT 10`,
+      [
+        userId,
+        Array.from(allowed),
+        // Mobiles are stored as typed at registration (077… and +9477… both
+        // exist), so match on the trailing digits — format-agnostic.
+        isMobileSearch ? digits.replace(/'/g, "") : null,
+        isNameSearch ? `${escapeLike(q)}%` : null,
+      ],
     );
-    return rows.map((r) => ({ id: r.id, name: r.name, mobile: r.mobile, role: r.role }));
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      role: r.role,
+      mobile: exactMobile ? r.mobile : maskMobile(r.mobile),
+    }));
+  }
+
+  private normalizeMobile(mobile: string): string {
+    return normalizeMobile(mobile);
   }
 
   async transfer(userId: string, batchId: string, dto: TransferDto) {
@@ -81,7 +138,20 @@ export class TransfersService {
       const senderRole = batch.current_holder_role ?? (await this.primaryRole(client, userId));
       const recipientRoles = await this.getRoles(dto.to_user_id);
       const allowed = TRANSFER_MATRIX[senderRole] ?? [];
-      const validTarget = recipientRoles.find((r) => allowed.includes(r));
+
+      let validTarget: string | undefined;
+      if (dto.to_role) {
+        if (!recipientRoles.includes(dto.to_role) || !allowed.includes(dto.to_role)) {
+          throw Errors.forbidden(
+            "TRANSFER_NOT_ALLOWED",
+            `A ${senderRole} cannot transfer to this recipient as ${dto.to_role}`,
+          );
+        }
+        validTarget = dto.to_role;
+      } else {
+        validTarget = recipientRoles.find((r) => allowed.includes(r));
+      }
+
       if (!validTarget) {
         throw Errors.forbidden(
           "TRANSFER_NOT_ALLOWED",
@@ -122,6 +192,19 @@ export class TransfersService {
         [batchId, dto.to_user_id, validTarget],
       );
 
+      await client.query(
+        `INSERT INTO audit_log (user_id, action, entity, entity_id, after)
+         VALUES ($1, 'TRANSFER_SENT', 'batch', $2, $3::jsonb)`,
+        [
+          userId,
+          batchId,
+          JSON.stringify({
+            to_user_id: dto.to_user_id,
+            transfer_kind: dto.transfer_kind,
+          }),
+        ],
+      );
+
       return {
         batch_id: batchId,
         batch_no: batch.batch_no,
@@ -142,11 +225,13 @@ export class TransfersService {
       from_name: string;
       from_role: string;
       transfer_kind: string;
+      to_role: string | null;
       transferred_at: string;
     }>(
       `SELECT b.id AS batch_id, b.batch_no, b.weight_kg, b.status,
               u.name AS from_name, e.actor_role AS from_role,
               COALESCE(e.transfer_kind, 'HANDOFF') AS transfer_kind,
+              b.current_holder_role AS to_role,
               e.created_at AS transferred_at
        FROM batches b
        JOIN batch_events e ON e.batch_id = b.id AND e.event_type = 'TRANSFERRED'
@@ -165,6 +250,9 @@ export class TransfersService {
       from_name: r.from_name,
       from_role: r.from_role,
       transfer_kind: r.transfer_kind,
+      // Which of the recipient's roles this was addressed to — the app
+      // scopes the inbox to the acting role with it.
+      to_role: r.to_role,
       transferred_at: r.transferred_at,
     }));
   }
@@ -193,7 +281,19 @@ export class TransfersService {
         payload: { action: "RECEIVED", weight_kg: Number(batch.weight_kg) },
       });
 
-      return { batch_id: batchId, batch_no: batch.batch_no, status: "RECEIVED" };
+      await client.query(
+        `INSERT INTO audit_log (user_id, action, entity, entity_id, after)
+         VALUES ($1, 'BATCH_RECEIVED', 'batch', $2, $3::jsonb)`,
+        [userId, batchId, JSON.stringify({ from: "IN_TRANSIT", to: "RECEIVED" })],
+      );
+
+      return {
+        batch_id: batchId,
+        batch_no: batch.batch_no,
+        status: "RECEIVED",
+        current_holder_id: userId,
+        current_holder_role: recipientRole,
+      };
     });
   }
 

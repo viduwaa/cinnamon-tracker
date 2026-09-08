@@ -23,19 +23,64 @@ export class FarmsService {
   constructor(private readonly db: DatabaseService) {}
 
   async create(userId: string, dto: CreateFarmDto) {
-    // farmer_code: short per-owner code used inside batch numbers.
-    // Derived from the owner's farm count so it is stable and short (A, B, …, then AA…).
-    const countRow = await this.db.queryOne<{ n: string }>(
-      "SELECT count(*)::text AS n FROM farms WHERE owner_user_id = $1",
+    try {
+      return await this.db.transaction((client) =>
+        this.insertWithCodeAllocation(client, userId, dto),
+      );
+    } catch (err) {
+      // Recovery happens on the pool, NOT inside the aborted transaction —
+      // Postgres rejects any statement after a failed one (25P02).
+      if ((err as { code?: string }).code === "23505") {
+        const row = await this.db.queryOne<FarmRow>(
+          "SELECT * FROM farms WHERE id = $1",
+          [dto.id],
+        );
+        if (row && row.owner_user_id === userId) return this.toPublic(row);
+        throw Errors.conflict("ID_TAKEN", "A farm with this id already exists");
+      }
+      throw err;
+    }
+  }
+
+  private async insertWithCodeAllocation(
+    client: import("pg").PoolClient,
+    userId: string,
+    dto: CreateFarmDto,
+  ) {
+    // Natural idempotency pre-check: a replayed create (lost response, key
+    // header missing) returns the already-created farm instead of a PK hit.
+    const existing = await client.query<FarmRow>(
+      "SELECT * FROM farms WHERE id = $1",
+      [dto.id],
+    );
+    if ((existing.rowCount ?? 0) > 0) {
+      const row = existing.rows[0]!;
+      if (row.owner_user_id === userId) return this.toPublic(row);
+      throw Errors.conflict("ID_TAKEN", "A farm with this id already exists");
+    }
+
+    // farmer_code is baked into immutable batch numbers (PLAN §4), so
+    // allocation must be serialized per owner and must never recycle after
+    // deletions: next = max(count, max existing decoded code) + 1.
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+      `farmer_code:${userId}`,
+    ]);
+    const ownerFarms = await client.query<{ farmer_code: string }>(
+      "SELECT farmer_code FROM farms WHERE owner_user_id = $1",
       [userId],
     );
-    const farmerCode = this.encodeFarmerCode(Number(countRow?.n ?? 0) + 1);
+    const maxDecoded = ownerFarms.rows.reduce(
+      (max, r) => Math.max(max, this.decodeFarmerCode(r.farmer_code)),
+      0,
+    );
+    const farmerCode = this.encodeFarmerCode(maxDecoded + 1);
 
-    await this.db.query(
+    const inserted = await client.query<FarmRow>(
       `INSERT INTO farms
          (id, owner_user_id, name, area_code, farmer_code, size_value, size_unit,
           lat, lng, address_text, location_public_level)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING *`,
       [
         dto.id,
         userId,
@@ -51,7 +96,28 @@ export class FarmsService {
       ],
     );
 
-    return this.get(userId, dto.id);
+    await this.audit(client, userId, "FARM_CREATED", "farm", dto.id, {
+      name: dto.name,
+      area_code: dto.area_code,
+      farmer_code: farmerCode,
+    });
+
+    return this.toPublic(inserted.rows[0]!);
+  }
+
+  private audit(
+    client: import("pg").PoolClient,
+    userId: string,
+    action: string,
+    entity: string,
+    entityId: string,
+    after: Record<string, unknown>,
+  ) {
+    return client.query(
+      `INSERT INTO audit_log (user_id, action, entity, entity_id, after)
+       VALUES ($1, $2, $3, $4, $5::jsonb)`,
+      [userId, action, entity, entityId, JSON.stringify(after)],
+    );
   }
 
   async listMine(userId: string) {
@@ -128,5 +194,13 @@ export class FarmsService {
       value = Math.floor((value - 1) / 26);
     }
     return code;
+  }
+
+  /** Inverse of encodeFarmerCode; unknown shapes decode to 0 (ignored). */
+  private decodeFarmerCode(code: string): number {
+    if (!/^[A-Z]+$/.test(code)) return 0;
+    let value = 0;
+    for (const ch of code) value = value * 26 + (ch.charCodeAt(0) - 64);
+    return value;
   }
 }

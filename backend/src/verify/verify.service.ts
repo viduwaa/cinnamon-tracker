@@ -66,22 +66,38 @@ export class VerifyService {
     const chainResult = verifyChain(stored);
     const chainValid = chainResult.valid;
 
-    // Anchor status: any confirmed anchor covering this batch's events.
-    const anchoredCount = await this.db.queryOne<{ n: string }>(
-      "SELECT count(*)::text AS n FROM batch_events WHERE batch_id = $1 AND anchored_at IS NOT NULL",
+    // Anchor status: an anchor "covers" this batch once its events carry
+    // anchored_at. The verdict requires ALL events anchored; partial
+    // anchoring stays PENDING rather than over-claiming AUTHENTIC.
+    const counts = await this.db.queryOne<{ total: string; anchored: string }>(
+      `SELECT count(*)::text AS total,
+              count(anchored_at)::text AS anchored
+       FROM batch_events WHERE batch_id = $1`,
       [batch.id],
     );
-    const anchorConfirmed = Number(anchoredCount?.n ?? 0) > 0;
+    const total = Number(counts?.total ?? 0);
+    const anchoredCount = Number(counts?.anchored ?? 0);
+    const anchorConfirmed = total > 0 && anchoredCount === total;
 
-    const anchors = await this.db.query<{
-      network: string;
-      tx_hash: string | null;
-      anchored_at: string;
-      status: string;
-    }>(
-      `SELECT network, tx_hash, anchored_at, status FROM chain_anchors
-       ORDER BY anchored_at DESC LIMIT 5`,
+    // Only list anchors that could actually cover this batch (created after
+    // its first event). A global "last 5" list would show unrelated evidence.
+    const firstEventRow = await this.db.queryOne<{ first_at: string }>(
+      "SELECT min(created_at)::text AS first_at FROM batch_events WHERE batch_id = $1",
+      [batch.id],
     );
+    const anchors = firstEventRow?.first_at
+      ? await this.db.query<{
+          network: string;
+          tx_hash: string | null;
+          anchored_at: string;
+          status: string;
+        }>(
+          `SELECT network, tx_hash, anchored_at, status FROM chain_anchors
+           WHERE anchored_at >= $1::timestamptz
+           ORDER BY anchored_at DESC LIMIT 5`,
+          [firstEventRow.first_at],
+        )
+      : [];
 
     const verdict = computeVerdict({ chainValid, anchorConfirmed });
 
