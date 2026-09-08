@@ -8,6 +8,7 @@ import {
   Put,
   UseGuards,
 } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import { CurrentUserId } from "../common/current-user.decorator";
 import { AuthService } from "./auth.service";
 import {
@@ -29,6 +30,9 @@ export class AuthController {
     return this.auth.register(dto);
   }
 
+  // OTP sends cost real money per SMS — cap issuance far below the global
+  // rate: 5 requests per 15 minutes per IP (api-spec §11 promises 429).
+  @Throttle({ default: { limit: 5, ttl: 15 * 60_000 } })
   @Post("otp/request")
   requestOtp(@Body() dto: OtpRequestDto) {
     return this.auth.requestOtp(dto);

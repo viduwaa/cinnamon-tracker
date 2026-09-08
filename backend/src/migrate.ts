@@ -6,9 +6,11 @@ import { join } from "node:path";
 import { Client } from "pg";
 
 async function main() {
-  const url = process.env.DATABASE_URL;
+  // DDL runs on the direct (unpooled) connection when available — Neon's
+  // PgBouncer transaction pool does not reliably support prepared statements.
+  const url = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
   if (!url) {
-    console.error("DATABASE_URL is not set");
+    console.error("DATABASE_URL (or DATABASE_URL_UNPOOLED) is not set");
     process.exit(1);
   }
   const client = new Client({ connectionString: url });

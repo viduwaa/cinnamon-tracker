@@ -4,6 +4,7 @@ import { JwtService } from "@nestjs/jwt";
 import { createHash, randomInt } from "node:crypto";
 import { DatabaseService } from "../database/database.service";
 import { Errors } from "../common/errors";
+import { normalizeMobile } from "../common/phone";
 import { uuidv7 } from "../common/uuid";
 import {
   AddRoleDto,
@@ -100,6 +101,22 @@ export class AuthService {
     );
     if (!user) {
       throw Errors.unauthorized("OTP_INVALID", "Invalid code");
+    }
+
+    // Dev bypass: when OTP_BYPASS_CODE is set, that fixed code verifies any
+    // registered mobile without touching otp_codes. Ignored in production —
+    // unset it there too (defense in depth).
+    const bypassCode = this.config.get<string>("OTP_BYPASS_CODE");
+    const bypassAllowed =
+      (this.config.get<string>("NODE_ENV") || process.env.NODE_ENV || "development") !==
+      "production";
+    if (bypassAllowed && bypassCode && dto.code === bypassCode) {
+      const token = this.jwt.sign({ sub: user.id, mobile: user.mobile });
+      return {
+        token,
+        expires_in: this.expiresInSeconds(),
+        user: await this.getPublicUser(user.id),
+      };
     }
 
     const otp = await this.db.queryOne<{
@@ -207,7 +224,7 @@ export class AuthService {
   }
 
   private normalizeMobile(mobile: string): string {
-    return mobile.replace(/[\s\-()]/g, "");
+    return normalizeMobile(mobile);
   }
 
   private generateCode(length: number): string {
