@@ -6,13 +6,22 @@ Modular-monolith REST API. Base URL: `https://api.cinnamontrace.example/v1`.
 
 - Auth: `Authorization: Bearer <JWT>` issued by `/auth/verify`. All endpoints
   except `auth/*` and `verify/*` require it.
-- Errors: `{ "error": { "code": "BATCH_NOT_FOUND", "message": "…" } }`
+- Errors: `{ "error": { "code": "BATCH_NOT_FOUND", "message": "…" } }`.
+  Validation failures use code `VALIDATION_ERROR` with field-level
+  `details: [{ field, constraints[] }]`. Every response carries an
+  `X-Request-Id` header for log correlation.
 - Pagination: `?limit=20&offset=0` → `data[]` + `meta { total, limit, offset }`.
-- Idempotency: mutating endpoints accept `Idempotency-Key` header; retries
-  with the same key return the original result (offline sync safety).
+  (Exception: `GET /farms` returns a bare array — a farmer's farms are few.)
+- Idempotency: mutating endpoints accept `Idempotency-Key`; retries with the
+  same key + same body replay the stored 2xx response (header
+  `Idempotency-Replayed: true`). Same key with a different body → `409
+  IDEMPOTENCY_KEY_REUSED`. Failed executions are never stored, so the key
+  stays retryable. Keys are scoped per user and expire after 72h.
 - Client IDs: `POST /farms` and `POST /batches` include a client-generated
   UUIDv7 `id`, so the offline app can reference entities before they sync.
-  The server validates format/uniqueness and echoes the id back.
+  The server validates format/uniqueness and echoes the id back. Replays of
+  an already-used client id return the existing entity (natural
+  idempotency) instead of an error.
 - All timestamps ISO-8601 UTC.
 
 **Role codes**: `FARMER`, `PROCESSOR_L1`, `COLLECTOR`, `PROCESSOR_L2`, `EXPORTER`.
@@ -121,13 +130,15 @@ caller, harvest_date ≤ today, weight > 0. Collision → `409`
   "harvest_type": "T",
   "farm": { "name": "Home Garden", "area_code": "GM", "location": "Galle district" },
   "current_holder": { "name": "…", "role": "PROCESSOR_L1" },
+  "current_holder_id": "…",
+  "current_holder_role": "PROCESSOR_L1",
   "root_batch_no": "GM-172-01-2026-FM-A-T",
   "chain": [
     { "event_type": "CREATED",     "actor_role": "FARMER",       "at": "2026-08-17T06:30:00Z", "summary": "Harvested 120.5 kg, 45 trees" },
     { "event_type": "TRANSFERRED", "actor_role": "FARMER",       "at": "2026-08-18T09:00:00Z", "summary": "Sold to Nimal (PROCESSOR_L1)" },
     { "event_type": "PROCESSED",   "actor_role": "PROCESSOR_L1", "at": "2026-08-20T14:00:00Z", "summary": "Peeling & quilling → 98.0 kg" }
   ],
-  "verification": { "status": "AUTHENTIC", "anchored_tx": "0xabc…", "network": "POLYGON" }
+  "verification": { "status": "AUTHENTIC", "anchored_events": 3, "total_events": 3, "chain_head_hash": "sha256:…" }
 }
 ```
 
@@ -135,10 +146,10 @@ caller, harvest_date ≤ today, weight > 0. Collision → `409`
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET  | `/transfers/recipients?q=` | Lookup by mobile/partial name |
+| GET  | `/transfers/recipients?q=` | Lookup by mobile/prefix-name |
 | POST | `/batches/{id}/transfer` | Confirm handoff |
 | GET  | `/inbox` | Incoming batches (pending/accepted) |
-| POST | `/inbox/{transferId}/accept` | Accept (default on SALE) |
+| POST | `/inbox/{batchId}/accept` | Accept (default on SALE) |
 
 Transfer matrix enforced server-side (see plan §3.4). Body:
 
@@ -154,6 +165,17 @@ Transfer matrix enforced server-side (see plan §3.4). Body:
 Rules: batch must be held by caller; recipient must hold a permitted role;
 batch status must be `HARVESTED|RECEIVED|PROCESSED` (not `IN_TRANSIT`);
 collector transfers never mutate `batch_no`.
+
+**Recipient lookup privacy**: no directory enumeration. Queries shorter than
+3 characters (names) or 6 digits (mobiles) return `[]`; matching is
+prefix-only, capped at 10 rows; mobile numbers are masked
+(`+947****4567`) unless the caller typed an exact full mobile number.
+Optional `role=` narrows results to one recipient role; a role outside the
+caller's transfer matrix also returns `[]`.
+
+`GET /inbox` rows include `to_role` — the recipient role the transfer was
+addressed to (`batches.current_holder_role`) — so multi-role clients can
+scope their inbox to the acting role.
 
 ## 5. Processing (P1 / P2)
 
@@ -218,6 +240,10 @@ QR payload: `https://verify.cinnamontrace.example/{batch_no}`.
 
 ## 8. Public verification (no auth)
 
+Served at both `GET /v1/verify/{batchNo}` and the prefix-free
+`GET /verify/{batchNo}` (the latter is what QR payloads encode:
+`https://verify.<domain>/{batchNo}`). Identical JSON from both.
+
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/verify/{batchNo}` | Public chain + verdict (also served as HTML page) |
@@ -260,6 +286,8 @@ Verdicts: `AUTHENTIC` (all hashes recompute & anchored) · `TAMPERED`
 | GET | `/admin/audit?user_id=&entity=` | Audit log |
 
 Admins are read-only over business data; no event mutation endpoint exists.
+Access is gated by an explicit `ADMIN_USER_IDS` allowlist (env); an unset
+list denies everyone.
 
 ## 10. Background jobs (not HTTP)
 
@@ -273,9 +301,9 @@ Admins are read-only over business data; no event mutation endpoint exists.
 | Code | Meaning |
 |------|---------|
 | 200 / 201 | OK / created |
-| 400 | Validation error (field-level `details[]`) |
-| 401 / 403 | Unauthenticated / role or visibility denied |
+| 400 | Validation error — `VALIDATION_ERROR` with field-level `details[]` |
+| 401 / 403 | Unauthenticated / role or visibility denied (`ADMIN_REQUIRED` on admin routes) |
 | 404 | Not found (or hidden by visibility rules) |
-| 409 | `BATCH_NO_TAKEN`, duplicate transfer, batch not in transferable state |
-| 429 | OTP / rate limit |
-| 503 | Anchor network unreachable (verification degrades to `PENDING`) |
+| 409 | `BATCH_NO_TAKEN`, `MOBILE_TAKEN`, `IDEMPOTENCY_KEY_REUSED`, `IDEMPOTENCY_IN_PROGRESS`, duplicate transfer, batch not in transferable state |
+| 429 | `RATE_LIMITED` — global 120/min per IP; OTP requests capped at 5/15min |
+| 503 | `DB_UNAVAILABLE` (Neon unreachable mid-transaction) or anchor network unreachable (verification degrades to `PENDING`) |
