@@ -14,3 +14,12 @@ tools/pgsql/
 tools/pgdata/
 tools/flutter/
 tools/pg.log
+
+# Agent artifacts & temporary tooling
+.agents/
+backend/.agents/
+skills-lock.json
+*.skills-lock.json
+.neon
+backend/.neon
+
