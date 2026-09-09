@@ -188,7 +188,6 @@ Body:
 
 ```json
 {
-  "process_type": "QUILLING",
   "output_weight_kg": 98.0,
   "batch_no": null
 }
@@ -197,20 +196,27 @@ Body:
 Server behavior:
 
 - `batch_no: null` → server appends stage suffix to current number
-  (`…/P1`, `…/P1/P2`). **Never manually editable for P1.**
+  (`…/P1`, `…/P1/P2`). **Never manually editable for P1** — a P1 request
+  carrying `batch_no` is rejected with `400 P1_NOT_RENAMABLE`.
 - P2 may supply a custom `batch_no`; it must match
   `^[A-Z]{2}-\d{3}-\d{2}-\d{4}-P2-[A-Z0-9]{1,4}$`. The parent link is created
   regardless — custom numbers never break lineage.
+- Renumbering keeps every old number resolvable: the former number is stored
+  in `batch_no_aliases` and the change is a first-class `RENAMED` ledger
+  event. Printed QR labels with old numbers keep working.
 - Same-user farmer+P1 case: number unchanged, `PROCESSED` event appended,
   `stage_suffix` updated.
+- Re-processing under the same stage: number unchanged, only the `PROCESSED`
+  event is appended.
 
 ## 6. Export lots (EXPORTER)
 
 | Method | Path | Purpose |
 |--------|------|---------|
 | POST | `/lots/preview` | Validate candidate batches for merge |
-| POST | `/lots` | Create export lot (merge) |
-| GET  | `/lots/{id}` | Lot + all merged origin chains |
+| POST | `/lots` | Create export lot (merge) + export in one step |
+| GET  | `/lots` | My lots (with per-lot batch counts) |
+| GET  | `/lots/{id}` | Lot + shipment details + all merged origin chains |
 
 Body:
 
@@ -225,9 +231,29 @@ Body:
 }
 ```
 
-Rules: all candidates must be held by the exporter; source batches move to
-`MERGED`; lot becomes `EXPORTED` on shipment confirmation. Lot QR page lists
-every origin farm.
+Rules: all candidates must be held by the exporter and be in
+`HARVESTED|RECEIVED|PROCESSED`; `lot_no` must match
+`^EX-\d{3}-\d{4}-EXP-[A-Z0-9]{1,4}$`; `container_no` (when present) must match
+ISO 6346 `^[A-Z]{4}\d{7}$`. Creating the lot applies shipment fields and
+`EXPORTED` immediately (one-step export — the exporter has no handover);
+source batches move to `MERGED` with `MERGED_IN` events pointing at the lot.
+The lot IS a batch row (its own hash-chained events, QR = verify URL), and its
+verify page shows a multi-origin timeline plus an `origins[]` list (farm,
+district, weight per source). `exporter_code` (the `EXP-A` part) is assigned
+server-side when the account gains the EXPORTER role and returned in
+`/auth/me` (`exporter_code`), so clients can generate lot numbers offline.
+Duplicate `lot_no` → `409 LOT_NO_TAKEN`.
+
+### 6.1 Exporter renumbering
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/batches/{id}/rename` | Exporter renumbers a held batch (pre-export) |
+
+Body: `{"batch_no": null}` → appends `/EX` to the current number;
+`{"batch_no": "GM-172-01-2026-EX-ACME"}` → custom number matching
+`^[A-Z]{2}-\d{3}-\d{2}-\d{4}-EX-[A-Z0-9]{1,4}$`. Same alias/RENAMED-event
+mechanics as the P2 rename; lot rows cannot be renamed.
 
 ## 7. QR
 
@@ -304,6 +330,6 @@ list denies everyone.
 | 400 | Validation error — `VALIDATION_ERROR` with field-level `details[]` |
 | 401 / 403 | Unauthenticated / role or visibility denied (`ADMIN_REQUIRED` on admin routes) |
 | 404 | Not found (or hidden by visibility rules) |
-| 409 | `BATCH_NO_TAKEN`, `MOBILE_TAKEN`, `IDEMPOTENCY_KEY_REUSED`, `IDEMPOTENCY_IN_PROGRESS`, duplicate transfer, batch not in transferable state |
+| 409 | `BATCH_NO_TAKEN`, `LOT_NO_TAKEN`, `MOBILE_TAKEN`, `IDEMPOTENCY_KEY_REUSED`, `IDEMPOTENCY_IN_PROGRESS`, duplicate transfer, batch not in transferable state |
 | 429 | `RATE_LIMITED` — global 120/min per IP; OTP requests capped at 5/15min |
 | 503 | `DB_UNAVAILABLE` (Neon unreachable mid-transaction) or anchor network unreachable (verification degrades to `PENDING`) |

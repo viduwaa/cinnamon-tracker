@@ -187,8 +187,9 @@ farmer A, tree harvest.
 |-------|------------------|
 | Farmer harvest (root) | `GM-172-01-2026-FM-A-T` |
 | P1 processing (any) | `GM-172-01-2026-FM-A-T/P1` |
-| P2 processing | `GM-172-01-2026-FM-A-T/P1/P2` |
-| Export lot (merge) | `EX-001-2026-EXP-MERGED(x5)` |
+| P2 processing | `GM-172-01-2026-FM-A-T/P1/P2` (or custom `GM-164-92-2026-P2-CODE`) |
+| Exporter rename | `GM-172-01-2026-FM-A-T/P1/P2/EX` (or custom `…-EX-CODE`) |
+| Export lot (merge) | `EX-001-2026-EXP-A` — old numbers of merged batches stay resolvable (aliases) |
 
 Collector hand-offs leave the number **unchanged** (their event is recorded
 in the chain, not the number).

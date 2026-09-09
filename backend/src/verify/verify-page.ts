@@ -22,7 +22,15 @@ interface VerifyView {
     size?: string;
     location?: { lat: number; lng: number } | null;
   } | null;
+  /** Export lots only: one entry per merged source batch. */
+  origins?: Array<{
+    batch_no?: string;
+    farm_name?: string | null;
+    district?: string | null;
+    weight_kg?: number;
+  }>;
   chain: Array<{
+    batch_no?: string;
     summary?: string;
     event_type: string;
     actor_name: string;
@@ -101,6 +109,7 @@ export function renderVerifyPage(v: VerifyView): string {
       <div class="dot ${e.anchored ? "ok" : ""}"></div>
       <div class="ev">
         <div class="ev-title">${esc(e.summary ?? e.event_type)}</div>
+        ${e.batch_no && e.batch_no !== v.batch_no ? `<div class="muted"><code>${esc(e.batch_no)}</code></div>` : ""}
         <div class="muted">${esc(e.actor_name)} · ${esc(e.actor_role)} · ${esc(fmtWhen(e.at))}</div>
         <code class="hash" title="${esc(e.event_hash)}">${esc(shortHash(e.event_hash))}</code>
         ${e.anchored ? '<span class="ok small">✓ anchored</span>' : ""}
@@ -178,6 +187,22 @@ export function renderVerifyPage(v: VerifyView): string {
            ${origin.size ? `<div class="row"><span>Land size</span>${esc(origin.size)}</div>` : ""}
            <div class="row"><span>Location</span>${originLocation}</div>
            ${originMap}
+         </div>`
+      : ""
+  }
+
+  ${
+    v.origins && v.origins.length
+      ? `<div class="card">
+           <div class="row"><span>Export lot</span><b>${v.origins.length} origin batch${v.origins.length === 1 ? "" : "es"}</b></div>
+           ${v.origins
+             .map(
+               (o) =>
+                 `<div class="row"><span><code>${esc(o.batch_no ?? "—")}</code></span>${esc(
+                   [o.farm_name, o.district].filter(Boolean).join(" · ") || "—",
+                 )}${o.weight_kg != null ? ` · ${esc(o.weight_kg)} kg` : ""}</div>`,
+             )
+             .join("")}
          </div>`
       : ""
   }

@@ -16,6 +16,7 @@ class UserProfile {
     required this.mobile,
     required this.roles,
     this.email,
+    this.exporterCode,
   });
 
   final String id;
@@ -24,12 +25,18 @@ class UserProfile {
   final List<String> roles;
   final String? email;
 
+  /// Server-assigned code baked into export lot numbers
+  /// (`EX-SSS-YYYY-EXP-CODE`). Null until the account holds the EXPORTER
+  /// role; allocated server-side at registration / add-role.
+  final String? exporterCode;
+
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
         id: json["id"].toString(),
         name: json["name"].toString(),
         mobile: json["mobile"].toString(),
         roles: (json["roles"] as List? ?? const []).map((e) => e.toString()).toList(),
         email: json["email"]?.toString(),
+        exporterCode: json["exporter_code"]?.toString(),
       );
 
   Map<String, dynamic> toJson() => {
@@ -38,6 +45,7 @@ class UserProfile {
         "mobile": mobile,
         "roles": roles,
         "email": email,
+        "exporter_code": exporterCode,
       };
 }
 

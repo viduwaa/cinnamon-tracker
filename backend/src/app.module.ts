@@ -15,6 +15,7 @@ import { RequestIdMiddleware } from "./common/request-id.middleware";
 import { ValidationError } from "./common/errors";
 import { DatabaseModule } from "./database/database.module";
 import { FarmsModule } from "./farms/farms.module";
+import { LotsModule } from "./lots/lots.module";
 import { HealthController } from "./health.controller";
 import { TransfersModule } from "./transfers/transfers.module";
 import { VerifyModule } from "./verify/verify.module";
@@ -40,6 +41,7 @@ import { VerifyModule } from "./verify/verify.module";
     AuthModule,
     FarmsModule,
     BatchesModule,
+    LotsModule,
     TransfersModule,
     VerifyModule,
     AnchorModule,

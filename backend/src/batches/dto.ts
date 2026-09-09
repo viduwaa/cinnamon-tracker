@@ -9,7 +9,9 @@ import {
   Matches,
   Max,
   Min,
+  ValidateIf,
 } from "class-validator";
+import { EX_CUSTOM_NO_REGEX, P2_CUSTOM_NO_REGEX } from "./numbering";
 
 /** Root batch number: AA-JULIAN-SEQ-YEAR-FM-FARMERCODE-T|Q */
 export const ROOT_BATCH_NO_REGEX =
@@ -46,6 +48,23 @@ export class CreateBatchDto {
   weight_kg!: number;
 }
 
+/**
+ * P2 custom renumbering: `AA-JJJ-SS-YYYY-P2-CODE`. P1 never sends batch_no
+ * (the service rejects it; the DTO cannot express "P1 only").
+ */
+export class ProcessBatchDto {
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.01)
+  @Max(1000000)
+  output_weight_kg!: number;
+
+  @IsOptional()
+  @IsString()
+  @Matches(P2_CUSTOM_NO_REGEX)
+  batch_no?: string;
+}
+
 export class ListBatchesQuery {
   @IsOptional()
   @IsString()
@@ -71,4 +90,16 @@ export class ListBatchesQuery {
   @IsInt()
   @Min(0)
   offset?: number;
+}
+
+/**
+ * Exporter renumbering (grill Q3): empty/null batch_no → append "/EX";
+ * otherwise a custom `AA-JJJ-SS-YYYY-EX-CODE` number.
+ */
+export class RenameBatchDto {
+  @IsOptional()
+  @ValidateIf((o) => o.batch_no !== null && o.batch_no !== "")
+  @IsString()
+  @Matches(EX_CUSTOM_NO_REGEX)
+  batch_no?: string | null;
 }

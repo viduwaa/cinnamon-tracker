@@ -202,10 +202,7 @@ export class BatchesService {
   }
 
   async getByNo(userId: string, batchNo: string) {
-    const row = await this.db.queryOne<BatchRow>(
-      "SELECT * FROM batches WHERE batch_no = $1",
-      [batchNo],
-    );
+    const row = await this.resolveByNo(batchNo);
     if (!row) throw Errors.notFound("BATCH_NOT_FOUND", "Batch not found");
     if (!(await this.canView(userId, row.id))) {
       throw Errors.notFound("BATCH_NOT_FOUND", "Batch not found");
@@ -221,18 +218,32 @@ export class BatchesService {
 
   /** Public chain for the verify portal — no visibility restriction. */
   async publicChain(batchNo: string) {
-    const row = await this.db.queryOne<BatchRow>(
-      "SELECT * FROM batches WHERE batch_no = $1",
-      [batchNo],
-    );
+    const row = await this.resolveByNo(batchNo);
     if (!row) return null;
     return this.buildChain(row.id);
   }
 
+  /**
+   * Resolve a batch number to its row: current number first, then any
+   * former number (batch_no_aliases, migration 0004). Old printed QR
+   * labels keep working after P2/exporter renumbering.
+   */
+  async resolveByNo(batchNo: string): Promise<BatchRow | null> {
+    const direct = await this.db.queryOne<BatchRow>(
+      "SELECT * FROM batches WHERE batch_no = $1",
+      [batchNo],
+    );
+    if (direct) return direct;
+    return this.db.queryOne<BatchRow>(
+      `SELECT b.* FROM batches b
+       JOIN batch_no_aliases a ON a.batch_id = b.id
+       WHERE a.alias = $1`,
+      [batchNo],
+    );
+  }
+
   async findRowByNo(batchNo: string): Promise<BatchRow | null> {
-    return this.db.queryOne<BatchRow>("SELECT * FROM batches WHERE batch_no = $1", [
-      batchNo,
-    ]);
+    return this.resolveByNo(batchNo);
   }
 
   async canView(userId: string, batchId: string): Promise<boolean> {
@@ -248,72 +259,82 @@ export class BatchesService {
   }
 
   private async buildChain(batchId: string) {
-    const events = await this.db.query<
-      Record<string, unknown> & {
-        event_type: string;
-        actor_role: string;
-        actor_name: string;
-        payload: Record<string, unknown>;
-        event_hash: string;
-        anchored_at: string | null;
-        created_at: string;
-      }
-    >(
-      `SELECT e.event_type, e.actor_role, u.name AS actor_name, e.payload,
-              e.event_hash, e.anchored_at, e.created_at
-       FROM batch_events e
-       JOIN users u ON u.id = e.actor_user_id
-       WHERE e.batch_id = $1
-       ORDER BY e.created_at ASC, e.id ASC`,
-      [batchId],
-    );
-
     const batch = await this.db.queryOne<BatchRow>(
       "SELECT * FROM batches WHERE id = $1",
       [batchId],
     );
-    let origin: Record<string, unknown> | null = null;
-    if (batch?.farm_id) {
-      const farm = await this.db.queryOne<{
-        name: string;
-        address_text: string | null;
-        area_code: string;
-        size_value: string;
-        size_unit: string;
-        lat: string | null;
-        lng: string | null;
-        location_public_level: string;
-      }>(
-        "SELECT name, address_text, area_code, size_value, size_unit, lat, lng, location_public_level FROM farms WHERE id = $1",
-        [batch.farm_id],
+    if (!batch) throw Errors.notFound("BATCH_NOT_FOUND", "Batch not found");
+
+    interface ChainEvent {
+      batch_no: string;
+      event_type: string;
+      actor_role: string;
+      actor_name: string;
+      payload: Record<string, unknown>;
+      event_hash: string;
+      anchored_at: string | null;
+      created_at: string;
+    }
+    const queryEvents = async (bId: string) =>
+      this.db.query<Record<string, unknown>>(
+        `SELECT e.event_type, e.actor_role, u.name AS actor_name, e.payload,
+                e.event_hash, e.anchored_at, e.created_at
+         FROM batch_events e
+         JOIN users u ON u.id = e.actor_user_id
+         WHERE e.batch_id = $1
+         ORDER BY e.created_at ASC, e.id ASC`,
+        [bId],
       );
-      if (farm) {
-        // Human district name for display (codes are batch-number internals).
-        const district = await this.db.queryOne<{ name_en: string }>(
-          "SELECT name_en FROM districts WHERE area_code = $1",
-          [farm.area_code],
+
+    // Lots are multi-origin (api-spec §8): one flat timeline covering every
+    // merged source batch plus the lot's own CREATED/EXPORTED events, each
+    // entry tagged with the batch_no it belongs to, and an origins[] list.
+    const isLot = batch.stage_suffix === "LOT";
+    const origins: Array<{
+      batch_no: string;
+      farm_name: string | null;
+      district: string | null;
+      weight_kg: number;
+    }> = [];
+    const events: ChainEvent[] = [];
+
+    if (isLot) {
+      const sources = await this.db.query<{ source_batch_id: string }>(
+        "SELECT source_batch_id FROM merge_parents WHERE lot_batch_id = $1 ORDER BY source_batch_id",
+        [batchId],
+      );
+      for (const s of sources) {
+        const src = await this.db.queryOne<BatchRow>(
+          "SELECT * FROM batches WHERE id = $1",
+          [s.source_batch_id],
         );
-        origin = {
-          farm_name: farm.name,
-          address: farm.address_text ?? null,
-          district: district?.name_en ?? farm.area_code,
-          area_code: farm.area_code,
-          size: `${Number(farm.size_value)} ${farm.size_unit}`,
-          // Respect the farmer's privacy choice on public surfaces.
-          location:
-            farm.location_public_level === "EXACT" && farm.lat !== null
-              ? { lat: Number(farm.lat), lng: Number(farm.lng) }
-              : null,
-        };
+        if (!src) continue;
+        for (const e of await queryEvents(src.id)) {
+          events.push({ ...(e as unknown as ChainEvent), batch_no: src.batch_no });
+        }
+        const srcOrigin = await this.originFor(src);
+        origins.push({
+          batch_no: src.root_batch_no,
+          farm_name: srcOrigin?.farm_name ?? null,
+          district: srcOrigin?.district ?? null,
+          weight_kg: Number(src.weight_kg),
+        });
       }
     }
+    for (const e of await queryEvents(batchId)) {
+      events.push({ ...(e as unknown as ChainEvent), batch_no: batch.batch_no });
+    }
+
+    const origin = isLot ? null : await this.originFor(batch);
 
     return {
-      batch_no: batch?.batch_no,
-      root_batch_no: batch?.root_batch_no,
+      batch_no: batch.batch_no,
+      root_batch_no: batch.root_batch_no,
       origin,
+      origins: isLot ? origins : undefined,
       verification: await this.verificationBlock(batchId),
       events: events.map((e) => ({
+        batch_no: e.batch_no,
         event_type: e.event_type,
         actor_role: e.actor_role,
         actor_name: e.actor_name,
@@ -322,6 +343,42 @@ export class BatchesService {
         event_hash: e.event_hash,
         anchored: e.anchored_at !== null,
       })),
+    };
+  }
+
+  /** Origin farm block for a (root-carrying) batch, honouring privacy level. */
+  private async originFor(batch: BatchRow) {
+    if (!batch.farm_id) return null;
+    const farm = await this.db.queryOne<{
+      name: string;
+      address_text: string | null;
+      area_code: string;
+      size_value: string;
+      size_unit: string;
+      lat: string | null;
+      lng: string | null;
+      location_public_level: string;
+    }>(
+      "SELECT name, address_text, area_code, size_value, size_unit, lat, lng, location_public_level FROM farms WHERE id = $1",
+      [batch.farm_id],
+    );
+    if (!farm) return null;
+    // Human district name for display (codes are batch-number internals).
+    const district = await this.db.queryOne<{ name_en: string }>(
+      "SELECT name_en FROM districts WHERE area_code = $1",
+      [farm.area_code],
+    );
+    return {
+      farm_name: farm.name,
+      address: farm.address_text ?? null,
+      district: district?.name_en ?? farm.area_code,
+      area_code: farm.area_code,
+      size: `${Number(farm.size_value)} ${farm.size_unit}`,
+      // Respect the farmer's privacy choice on public surfaces.
+      location:
+        farm.location_public_level === "EXACT" && farm.lat !== null
+          ? { lat: Number(farm.lat), lng: Number(farm.lng) }
+          : null,
     };
   }
 
@@ -408,6 +465,8 @@ export class BatchesService {
         return `Processed → ${payload.output_weight_kg ?? "?"} kg`;
       case "MERGED_IN":
         return "Merged into export lot";
+      case "RENAMED":
+        return `Renumbered ${payload.from ?? "?"} → ${payload.to ?? "?"}`;
       case "EXPORTED":
         return "Exported";
       default:

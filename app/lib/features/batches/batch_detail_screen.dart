@@ -5,6 +5,7 @@ import "package:go_router/go_router.dart";
 import "package:google_maps_flutter/google_maps_flutter.dart";
 import "package:url_launcher/url_launcher.dart";
 import "../../app/theme.dart";
+import "../../core/api/api_exception.dart";
 import "../../core/auth/auth_state.dart";
 import "../../core/data/repositories.dart";
 import "../../core/widgets/ct_widgets.dart";
@@ -51,10 +52,16 @@ class BatchDetailScreen extends ConsumerWidget {
             final isMine =
                 myId != null && b["current_holder_id"]?.toString() == myId;
             final canTransfer = isMine &&
-                transferableStatuses.contains(b["status"].toString());
+                holderActionStatuses.contains(b["status"].toString());
             final holder = b["current_holder"] as Map?;
             final holderRole = b["current_holder_role"]?.toString() ??
                 (holder?["role"]?.toString() ?? "");
+            final canProcess = isMine &&
+                holderActionStatuses.contains(b["status"].toString()) &&
+                (holderRole == "PROCESSOR_L1" || holderRole == "PROCESSOR_L2");
+            final canExport = isMine &&
+                holderActionStatuses.contains(b["status"].toString()) &&
+                holderRole == "EXPORTER";
             // Custody chip is acting-role aware, matching the Batches tab.
             final activeRole = ref.watch(activeRoleProvider);
             final accountRoles =
@@ -256,6 +263,40 @@ class BatchDetailScreen extends ConsumerWidget {
                 else
                   _Timeline(events: chain),
                 const SizedBox(height: 24),
+                if (canProcess) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: CtButton(
+                      label: "Record processing",
+                      icon: Icons.precision_manufacturing,
+                      onPressed: () => context.push("/process/$batchId"),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (canExport) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: CtButton(
+                      label: "Merge into export lot",
+                      icon: Icons.local_shipping,
+                      onPressed: () => context.push("/lots/new"),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Grill Q3: the exporter may renumber a held batch before
+                  // export — default appends /EX, or a custom EX-pattern no.
+                  SizedBox(
+                    width: double.infinity,
+                    child: CtButton(
+                      label: "Rename batch (/EX)",
+                      icon: Icons.label,
+                      secondary: true,
+                      onPressed: () => _showRenameSheet(context, ref, batchId),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 if (canTransfer) ...[
                   SizedBox(
                     width: double.infinity,
@@ -392,6 +433,86 @@ class BatchDetailScreen extends ConsumerWidget {
       ),
     );
   }
+
+  /// Exporter renumbering (grill Q3): empty input → append /EX; a custom
+  /// number must match the EX pattern. Old number stays resolvable via the
+  /// server-side alias table, and a RENAMED event lands on the chain.
+  Future<void> _showRenameSheet(
+    BuildContext context,
+    WidgetRef ref,
+    String batchId,
+  ) {
+    final customCtrl = TextEditingController();
+    return showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          Ct.pad, Ct.pad, Ct.pad, Ct.pad + MediaQuery.of(sheetContext).viewInsets.bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Rename batch", style: Theme.of(sheetContext).textTheme.titleLarge),
+            const SizedBox(height: 6),
+            Text(
+              "Leave empty to add /EX to the current number. The link to the origin batch is always kept.",
+              style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(color: Ct.faded),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: customCtrl,
+              decoration: const InputDecoration(
+                hintText: "GM-172-01-2026-EX-ACME",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            CtButton(
+              label: "Save number",
+              icon: Icons.check,
+              onPressed: () async {
+                try {
+                  final api = ref.read(apiClientProvider);
+                  final custom = customCtrl.text.trim().toUpperCase();
+                  final data = await api.post("/batches/$batchId/rename", body: {
+                    "batch_no": custom.isEmpty ? null : custom,
+                  });
+                  final m = data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+                  await ref.read(batchesRepoProvider).updateBatchLocalProcess(
+                        batchId: batchId,
+                        batchNo: m["batch_no"]?.toString(),
+                        stageSuffix: null,
+                        weightKg: 0,
+                      );
+                  ref.invalidate(batchByIdProvider(batchId));
+                  ref.invalidate(batchesProvider);
+                  if (sheetContext.mounted) Navigator.pop(sheetContext);
+                } on ApiException catch (e) {
+                  if (sheetContext.mounted) {
+                    ScaffoldMessenger.of(sheetContext).showSnackBar(SnackBar(
+                      content: Text(
+                        e.code == "BATCH_NO_TAKEN"
+                            ? "That number is already used."
+                            : "Could not rename — try again.",
+                      ),
+                    ));
+                  }
+                } catch (_) {
+                  if (sheetContext.mounted) {
+                    ScaffoldMessenger.of(sheetContext).showSnackBar(
+                      const SnackBar(content: Text("Could not rename — try again.")),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _Timeline extends StatelessWidget {
@@ -485,6 +606,7 @@ class _Timeline extends StatelessWidget {
         "CREATED" => Ct.leaf,
         "TRANSFERRED" => Ct.quill,
         "PROCESSED" => Ct.cinnamon,
+        "RENAMED" => Ct.faded,
         "EXPORTED" => Ct.bark,
         _ => Ct.faded,
       };
@@ -493,6 +615,7 @@ class _Timeline extends StatelessWidget {
         "CREATED" => Icons.spa,
         "TRANSFERRED" => Icons.swap_horiz,
         "PROCESSED" => Icons.precision_manufacturing,
+        "RENAMED" => Icons.label,
         "EXPORTED" => Icons.flight_takeoff,
         _ => Icons.circle,
       };

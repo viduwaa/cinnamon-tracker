@@ -13,6 +13,9 @@ import "../features/harvest/harvest_wizard_screen.dart";
 import "../features/harvest/harvest_done_screen.dart";
 import "../features/home/home_screen.dart";
 import "../features/inbox/inbox_screen.dart";
+import "../features/lots/lot_builder_screen.dart";
+import "../features/lots/lot_detail_screen.dart";
+import "../features/processing/process_screen.dart";
 import "../features/qr/qr_screen.dart";
 import "../features/settings/settings_screen.dart";
 import "../features/shell/app_shell.dart";
@@ -112,6 +115,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: "/transfer/:id",
         builder: (context, state) =>
             TransferScreen(batchId: state.pathParameters["id"]!),
+      ),
+      GoRoute(
+        path: "/process/:id",
+        builder: (context, state) =>
+            ProcessScreen(batchId: state.pathParameters["id"]!),
+      ),
+      GoRoute(path: "/lots/new", builder: (context, state) => const LotBuilderScreen()),
+      GoRoute(
+        path: "/lots/:id",
+        builder: (context, state) =>
+            LotDetailScreen(lotId: state.pathParameters["id"]!),
       ),
       GoRoute(path: "/farm/new", builder: (context, state) => const FarmWizardScreen()),
       GoRoute(path: "/settings", builder: (context, state) => const SettingsScreen()),

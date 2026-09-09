@@ -4,6 +4,7 @@ import { JwtService } from "@nestjs/jwt";
 import { createHash, randomInt } from "node:crypto";
 import { DatabaseService } from "../database/database.service";
 import { Errors } from "../common/errors";
+import { allocateExporterCode } from "../common/exporter-codes";
 import { normalizeMobile } from "../common/phone";
 import { uuidv7 } from "../common/uuid";
 import {
@@ -57,6 +58,11 @@ export class AuthService {
           "INSERT INTO user_roles (user_id, role) VALUES ($1, $2) ON CONFLICT DO NOTHING",
           [userId, role],
         );
+      }
+      // Exporter identity is baked into lot numbers — allocate at registration
+      // so the client can generate lot numbers offline before the first export.
+      if (dto.roles.includes("EXPORTER")) {
+        await allocateExporterCode(client, userId);
       }
     });
 
@@ -186,10 +192,15 @@ export class AuthService {
   }
 
   async addRole(userId: string, dto: AddRoleDto) {
-    await this.db.query(
-      "INSERT INTO user_roles (user_id, role) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-      [userId, dto.role],
-    );
+    await this.db.transaction(async (client) => {
+      await client.query(
+        "INSERT INTO user_roles (user_id, role) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        [userId, dto.role],
+      );
+      if (dto.role === "EXPORTER") {
+        await allocateExporterCode(client, userId);
+      }
+    });
     return this.getPublicUser(userId);
   }
 
@@ -214,8 +225,16 @@ export class AuthService {
   }
 
   private async getPublicUser(userId: string) {
-    const user = await this.db.queryOne<UserRow>(
-      "SELECT id, name, mobile, email, preferred_lang, created_at FROM users WHERE id = $1",
+    const user = await this.db.queryOne<{
+      id: string;
+      name: string;
+      mobile: string;
+      email: string | null;
+      preferred_lang: string;
+      created_at: string;
+      exporter_code: string | null;
+    }>(
+      "SELECT id, name, mobile, email, preferred_lang, created_at, exporter_code FROM users WHERE id = $1",
       [userId],
     );
     if (!user) return null;

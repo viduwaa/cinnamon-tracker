@@ -27,6 +27,10 @@ import "../sync/outbox_repository.dart";
 /// TRANSFERABLE_STATUSES on the server.
 const transferableStatuses = {"HARVESTED", "RECEIVED", "PROCESSED"};
 
+/// Statuses in which a holder may act on a batch (process it, rename it,
+/// merge it into a lot) — same set server-side, clearer name for UI gating.
+const holderActionStatuses = transferableStatuses;
+
 final outboxRepoProvider =
     Provider<OutboxRepository>((ref) => OutboxRepository(ref.watch(appDatabaseProvider)));
 
@@ -48,6 +52,16 @@ final farmsProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
 /// Batches, watched from the local drift DB (offline-first).
 final batchesProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
   return ref.watch(batchesRepoProvider).watchBatchesAsMaps();
+});
+
+/// Export lots held/created by the user (server truth, phase-2 §6).
+/// Lot rows are server-resident (created in the lot builder), so this is an
+/// API-backed FutureProvider rather than a drift stream.
+final myLotsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final api = ref.watch(apiClientProvider);
+  final data = await api.get("/lots", query: {"limit": 100});
+  final list = (data as Map?)?["data"] as List? ?? const [];
+  return [for (final raw in list) Map<String, dynamic>.from(raw as Map)];
 });
 
 /// Local-first single batch: emits the cached drift row immediately, then
@@ -433,6 +447,30 @@ class BatchesRepository {
         status: const Value("RECEIVED"),
         currentHolderId: Value(holderId),
         currentHolderRole: Value(holderRole),
+        syncState: const Value(SyncStateColumns.synced),
+      ),
+    );
+  }
+
+  /// Immediately updates a batch in local drift DB after processing (phase-2
+  /// §5): new number (suffix or P2 custom), stage suffix, PROCESSED status and
+  /// the yield-reduced weight — without waiting for pullBatches.
+  Future<void> updateBatchLocalProcess({
+    required String batchId,
+    required String? batchNo,
+    required String? stageSuffix,
+    required double weightKg,
+  }) async {
+    await (_db.update(_db.batches)..where((t) => t.id.equals(batchId))).write(
+      BatchesCompanion(
+        batchNo: batchNo == null || batchNo.isEmpty
+            ? const Value.absent()
+            : Value(batchNo),
+        stageSuffix: stageSuffix == null
+            ? const Value.absent()
+            : Value(stageSuffix),
+        status: const Value("PROCESSED"),
+        weightKg: Value(weightKg),
         syncState: const Value(SyncStateColumns.synced),
       ),
     );

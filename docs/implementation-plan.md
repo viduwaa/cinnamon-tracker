@@ -21,7 +21,7 @@ database (`schema.sql`), mobile detail (`flutter-plan.md`), screens
 |-----------|------|--------|
 | M0 Discovery | Field research, batch-no spec, rules confirmation | ✅ assumed complete (spec built & adopted) |
 | M1 MVP | Farmer → Collector flow + public QR verify, fully offline-first | 🟡 ~80% — backend ✓, UI ✓, offline-first ✗ |
-| M2 | Processing, guided renumbering, export lots, live SMS, Tamil, admin | ⬜ — |
+| M2 | Processing, guided renumbering, export lots, live SMS, Tamil, admin | 🟨 — processing (P1/P2) + export lots LIVE (backend + app); SMS/Tamil/admin pending |
 | M3 | EUDR reports, analytics, exporter integrations | ⬜ — |
 
 **M1 gap to "done":** the only missing piece is the offline-first layer (drift
@@ -95,8 +95,8 @@ same repositories the API already uses.
 
 ## M2 backlog (coarse)
 
-- Processing screens (P1/P2) + auto stage suffixes + P2 guided renumbering
-- Exporter lot builder (merge) + multi-origin QR page
+- Processing screens (P1/P2) + auto stage suffixes + P2 guided renumbering — ✅ backend + app (phase 2, Sep 2026): `POST /batches/{id}/process`, alias-preserving renames, lot builder `/lots/new`
+- Exporter lot builder (merge) + multi-origin QR page — ✅ backend + app (phase 2, Sep 2026): `POST /lots`, multi-origin verify chain + origins[]
 - **Offline outbox (drift)** — belonged in M1; brought forward. Batch-number regeneration, farm-before-batch ordering.
 - Live SMS gateway (real OTP), TalkBack walkthrough, Tamil ARB
 - Admin back-office: `/admin/anchors` (read-only, exists), `/admin/users`,

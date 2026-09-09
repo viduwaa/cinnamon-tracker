@@ -8,6 +8,7 @@ export type EventType =
   | "CREATED"
   | "TRANSFERRED"
   | "PROCESSED"
+  | "RENAMED"
   | "MERGED_IN"
   | "EXPORTED"
   | "ANCHORED";

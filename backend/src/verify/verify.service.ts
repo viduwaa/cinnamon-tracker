@@ -11,7 +11,10 @@ export interface VerifyResult {
     status: string;
   }>;
   origin: Record<string, unknown> | null;
+  /** Export lots only: one entry per merged source batch. */
+  origins?: Array<Record<string, unknown>>;
   chain: Array<{
+    batch_no?: string;
     event_type: string;
     actor_role: string;
     actor_name: string;
@@ -53,6 +56,7 @@ export class VerifyService {
         status: a.status,
       })),
       origin: chainData.origin,
+      origins: chainData.origins,
       chain: chainData.events.map((e) => ({
         ...e,
         verified: verification.verdict !== "TAMPERED",
