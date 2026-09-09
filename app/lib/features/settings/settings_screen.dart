@@ -3,6 +3,7 @@ import "package:flutter_riverpod/flutter_riverpod.dart";
 import "package:go_router/go_router.dart";
 import "../../app/theme.dart";
 import "../../core/auth/auth_state.dart";
+import "../../core/auth/biometric_service.dart";
 import "../../core/sync/sync_worker.dart";
 import "../../core/widgets/ct_widgets.dart";
 
@@ -286,6 +287,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               const SizedBox(height: 24),
             ],
 
+            // Biometric Security Card
+            const _BiometricSection(),
+            const SizedBox(height: 24),
+
             // Offline Sync Card
             const _SyncSection(),
             const SizedBox(height: 24),
@@ -497,6 +502,134 @@ class _SyncSection extends ConsumerWidget {
               onPressed: () => ref.read(syncWorkerProvider).drain(),
               child: const Text("Sync Now"),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BiometricSection extends ConsumerStatefulWidget {
+  const _BiometricSection();
+
+  @override
+  ConsumerState<_BiometricSection> createState() => _BiometricSectionState();
+}
+
+class _BiometricSectionState extends ConsumerState<_BiometricSection> {
+  bool _toggling = false;
+
+  Future<void> _onToggle(bool enable) async {
+    setState(() => _toggling = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      if (enable) {
+        final success = await ref.read(biometricProvider.notifier).enableBiometrics();
+        if (mounted) {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                success
+                    ? "Fingerprint login enabled / ඇඟිලි සලකුණු පිවිසුම සක්‍රිය කරන ලදී"
+                    : "Biometric confirmation cancelled / ක්‍රියාවලිය අවලංගු විය",
+              ),
+              backgroundColor: success ? Ct.leaf : Ct.clay,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } else {
+        await ref.read(biometricProvider.notifier).disableBiometrics();
+        if (mounted) {
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text("Fingerprint login disabled / ඇඟිලි සලකුණු පිවිසුම අක්‍රිය කරන ලදී"),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _toggling = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bioState = ref.watch(biometricProvider);
+    final textTheme = Theme.of(context).textTheme;
+
+    return CtCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Ct.cinnamon.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.fingerprint_rounded,
+                  color: Ct.cinnamon,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Fingerprint Lock", style: textTheme.titleMedium),
+                    Text(
+                      "ඇඟිලි සලකුණු අගුල",
+                      style: textTheme.labelSmall?.copyWith(color: Ct.faded),
+                    ),
+                  ],
+                ),
+              ),
+              if (bioState.isSupported)
+                _toggling
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Ct.cinnamon),
+                      )
+                    : Switch.adaptive(
+                        value: bioState.isEnabled,
+                        activeTrackColor: Ct.cinnamon,
+                        onChanged: _onToggle,
+                      )
+              else
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Ct.faded.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    "Unavailable",
+                    style: textTheme.labelSmall?.copyWith(color: Ct.faded),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            bioState.isSupported
+                ? "Prompt for fingerprint to unlock Cinnamon Trace on cold start."
+                : "Biometric hardware is not available or no fingerprint is enrolled on this device.",
+            style: textTheme.bodySmall?.copyWith(color: Ct.faded),
+          ),
+          Text(
+            bioState.isSupported
+                ? "යෙදුම විවෘත කිරීමේදී ඔබගේ ඇඟිලි සලකුණෙන් අගුළු හරින්න."
+                : "මෙම දුරකථනයේ ඇඟිලි සලකුණු පහසුකම සක්‍රිය කර නොමැත.",
+            style: textTheme.bodySmall?.copyWith(color: Ct.faded),
+          ),
         ],
       ),
     );

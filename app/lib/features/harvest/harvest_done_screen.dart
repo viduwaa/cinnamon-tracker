@@ -32,7 +32,7 @@ class HarvestDoneScreen extends ConsumerWidget {
             final batchNo = b["batch_no"].toString();
             const verifyBase = String.fromEnvironment(
               "VERIFY_BASE_URL",
-              defaultValue: "https://api.viduwa.dev/cinnamontrack/verify",
+              defaultValue: "https://api-cinnamon.viduwa.dev/verify",
             );
             final verifyUrl = "$verifyBase/$batchNo";
             return SingleChildScrollView(

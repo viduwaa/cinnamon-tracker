@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { Errors } from "../common/errors";
 import { DatabaseService } from "../database/database.service";
-import { verifyChain } from "../integrity";
+import { computeVerdict, verifyChain } from "../integrity";
 import { CreateBatchDto, ListBatchesQuery } from "./dto";
 import { LedgerService } from "./ledger.service";
 
@@ -300,6 +300,7 @@ export class BatchesService {
       batch_no: batch?.batch_no,
       root_batch_no: batch?.root_batch_no,
       origin,
+      verification: await this.verificationBlock(batchId),
       events: events.map((e) => ({
         event_type: e.event_type,
         actor_role: e.actor_role,
@@ -308,6 +309,78 @@ export class BatchesService {
         at: e.created_at,
         event_hash: e.event_hash,
         anchored: e.anchored_at !== null,
+      })),
+    };
+  }
+
+  /**
+   * Tamper-evidence block for a batch: recomputed hash-chain verdict plus the
+   * covering Bitcoin (OpenTimestamps) anchors. Single owner of this logic —
+   * the verify service reuses it for the public portal.
+   */
+  async verificationBlock(batchId: string) {
+    const events = await this.db.query<Record<string, unknown>>(
+      `SELECT batch_id, event_type, actor_user_id, actor_role, payload,
+              parent_event_hash, event_hash, created_at
+       FROM batch_events WHERE batch_id = $1
+       ORDER BY created_at ASC, id ASC`,
+      [batchId],
+    );
+    const chainResult = verifyChain(
+      events.map((e) => ({
+        batchId: e.batch_id as string,
+        eventType: e.event_type as string,
+        actorUserId: e.actor_user_id as string,
+        actorRole: e.actor_role as string,
+        payload: e.payload as Record<string, unknown>,
+        parentEventHash: (e.parent_event_hash as string | null) ?? null,
+        // node-postgres returns timestamptz as Date; the hash was computed
+        // over the original ISO-8601 string, so normalize back.
+        occurredAt: new Date(e.created_at as string).toISOString(),
+        eventHash: e.event_hash as string,
+      })),
+    );
+
+    const counts = await this.db.queryOne<{ total: string; anchored: string }>(
+      `SELECT count(*)::text AS total,
+              count(anchored_at)::text AS anchored
+       FROM batch_events WHERE batch_id = $1`,
+      [batchId],
+    );
+    const total = Number(counts?.total ?? 0);
+    const anchoredCount = Number(counts?.anchored ?? 0);
+    const anchorConfirmed = total > 0 && anchoredCount === total;
+
+    // Only anchors that could cover this batch (created after its first event).
+    const firstEventRow = await this.db.queryOne<{ first_at: string }>(
+      "SELECT min(created_at)::text AS first_at FROM batch_events WHERE batch_id = $1",
+      [batchId],
+    );
+    const anchors = firstEventRow?.first_at
+      ? await this.db.query<{
+          network: string;
+          merkle_root: string;
+          tx_hash: string | null;
+          anchored_at: string;
+          status: string;
+        }>(
+          `SELECT network, merkle_root, tx_hash, anchored_at, status FROM chain_anchors
+           WHERE anchored_at >= $1::timestamptz
+           ORDER BY anchored_at DESC LIMIT 5`,
+          [firstEventRow.first_at],
+        )
+      : [];
+
+    return {
+      verdict: computeVerdict({ chainValid: chainResult.valid, anchorConfirmed }),
+      event_count: total,
+      anchored_count: anchoredCount,
+      anchors: anchors.map((a) => ({
+        network: a.network,
+        merkle_root: a.merkle_root,
+        tx_hash: a.tx_hash,
+        anchored_at: a.anchored_at,
+        status: a.status,
       })),
     };
   }
@@ -363,63 +436,7 @@ export class BatchesService {
         : null,
       chain: chain.events,
       origin: chain.origin,
-      verification: await this.verificationSummary(row),
-    };
-  }
-
-  /**
-   * Verification status for the app detail view — same semantics as the
-   * public verify surface: TAMPERED when the recomputed hash chain breaks,
-   * AUTHENTIC only when every event also carries an anchor timestamp,
-   * PENDING otherwise.
-   */
-  private async verificationSummary(row: BatchRow) {
-    const events = await this.db.query<{
-      batch_id: string;
-      event_type: string;
-      actor_user_id: string;
-      actor_role: string;
-      payload: Record<string, unknown>;
-      parent_event_hash: string | null;
-      event_hash: string;
-      created_at: string;
-    }>(
-      `SELECT batch_id, event_type, actor_user_id, actor_role, payload,
-              parent_event_hash, event_hash, created_at
-       FROM batch_events WHERE batch_id = $1
-       ORDER BY created_at ASC, id ASC`,
-      [row.id],
-    );
-    const { valid } = verifyChain(
-      events.map((e) => ({
-        batchId: e.batch_id,
-        eventType: e.event_type,
-        actorUserId: e.actor_user_id,
-        actorRole: e.actor_role,
-        payload: e.payload,
-        parentEventHash: e.parent_event_hash,
-        occurredAt: new Date(e.created_at).toISOString(),
-        eventHash: e.event_hash,
-      })),
-    );
-
-    const total = events.length;
-    const anchoredCount = (
-      await this.db.queryOne<{ n: string }>(
-        "SELECT count(*)::text AS n FROM batch_events WHERE batch_id = $1 AND anchored_at IS NOT NULL",
-        [row.id],
-      )
-    )?.n;
-
-    return {
-      status: !valid
-        ? "TAMPERED"
-        : total > 0 && Number(anchoredCount ?? 0) === total
-          ? "AUTHENTIC"
-          : "PENDING",
-      anchored_events: Number(anchoredCount ?? 0),
-      total_events: total,
-      chain_head_hash: row.chain_head_hash,
+      verification: await this.verificationBlock(row.id),
     };
   }
 

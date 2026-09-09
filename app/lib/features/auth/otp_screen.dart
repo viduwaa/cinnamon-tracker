@@ -4,7 +4,9 @@ import "package:flutter_riverpod/flutter_riverpod.dart";
 import "package:go_router/go_router.dart";
 import "../../app/theme.dart";
 import "../../core/auth/auth_state.dart";
+import "../../core/auth/biometric_service.dart";
 import "../../core/widgets/ct_widgets.dart";
+import "biometric_prompt_sheet.dart";
 
 class OtpScreen extends ConsumerStatefulWidget {
   const OtpScreen({super.key});
@@ -42,6 +44,16 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     });
     try {
       await ref.read(authProvider.notifier).verifyOtp(_mobile, _controller.text);
+      if (!mounted) return;
+
+      final biometricService = ref.read(biometricServiceProvider);
+      final isSupported = await biometricService.isDeviceSupported();
+      final isAlreadyEnabled = await biometricService.isBiometricEnabled();
+
+      if (mounted && isSupported && !isAlreadyEnabled) {
+        await showBiometricPromptSheet(context, ref);
+      }
+
       if (mounted) context.go("/home");
     } catch (e) {
       setState(() {

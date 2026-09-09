@@ -213,6 +213,29 @@ class BatchesRepository {
     return watchBatches().map((rows) => [for (final r in rows) batchToMap(r)]);
   }
 
+  /// Resolve a scanned batch number to a batch map. Offline-first: emit the
+  /// cached drift row at once (offline scan shows info), then refresh server
+  /// truth (GET /batches/by-no/:batchNo) and cache it — so custody/status is
+  /// current before the user decides to collect. Throws when neither has it.
+  Future<Map<String, dynamic>> resolveBatchByNo(String batchNo) async {
+    final local = await (_db.select(_db.batches)
+          ..where((t) => t.batchNo.equals(batchNo)))
+        .getSingleOrNull();
+    if (local != null) {
+      // Refresh in the background; the cached view answers immediately.
+      unawaited(_refreshByNo(batchNo));
+      return batchToMap(local);
+    }
+    return _refreshByNo(batchNo);
+  }
+
+  Future<Map<String, dynamic>> _refreshByNo(String batchNo) async {
+    final data = await api.get("/batches/by-no/$batchNo");
+    final m = Map<String, dynamic>.from(data as Map);
+    await _upsertBatchFromServer(m);
+    return m;
+  }
+
   /// One drift transaction (flutter-plan §4.4): allocate SEQ from
   /// SeqCounters(farmId, dayKey), generate the batch number, insert the batch
   /// row (HARVESTED, holder = self, rootBatchNo = batchNo) and enqueue the

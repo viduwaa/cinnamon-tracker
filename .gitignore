@@ -3,10 +3,16 @@ dist/
 *.log
 .env
 .env.*
+# Local build-time config (secrets like MAPS_API_KEY). Template: app/env.example.json
+app/env.json
+scripts/db-backup*.json
 build/
 .dart_tool/
 .idea/
 .vscode/
+# Committed Flutter launch config carries --dart-define-from-file so the map key loads automatically
+!app/.vscode/
+!app/.vscode/launch.json
 
 # Local portable tooling (large zips + extracted dirs)
 tools/*.zip

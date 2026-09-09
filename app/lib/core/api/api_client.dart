@@ -34,7 +34,7 @@ class ApiClient {
 
   static const String defaultBaseUrl = String.fromEnvironment(
     "API_BASE_URL",
-    defaultValue: "https://api.viduwa.dev/cinnamontrack/v1",
+    defaultValue: "https://api-cinnamon.viduwa.dev/v1",
   );
 
   static String activeBaseUrl = defaultBaseUrl;

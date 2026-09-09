@@ -4,9 +4,11 @@ import "package:flutter/material.dart";
 import "package:flutter_riverpod/flutter_riverpod.dart";
 import "package:go_router/go_router.dart";
 import "../../app/theme.dart";
+import "../../core/api/maps_api_key.dart";
 import "../../core/data/repositories.dart";
 import "../../core/sync/sync_worker.dart";
 import "../../core/widgets/ct_widgets.dart";
+import "farm_location_picker.dart";
 
 /// Sri Lankan districts → 2-letter area codes (bundled lookup).
 const _districts = [
@@ -47,9 +49,9 @@ class FarmWizardScreen extends ConsumerStatefulWidget {
 class _FarmWizardScreenState extends ConsumerState<FarmWizardScreen> {
   final _nameCtrl = TextEditingController();
   final _sizeCtrl = TextEditingController();
-  final _latCtrl = TextEditingController();
-  final _lngCtrl = TextEditingController();
   final _addrCtrl = TextEditingController();
+  double? _lat;
+  double? _lng;
   String? _areaCode;
   String _unit = "ACRE";
   bool _saving = false;
@@ -59,8 +61,6 @@ class _FarmWizardScreenState extends ConsumerState<FarmWizardScreen> {
   void dispose() {
     _nameCtrl.dispose();
     _sizeCtrl.dispose();
-    _latCtrl.dispose();
-    _lngCtrl.dispose();
     _addrCtrl.dispose();
     super.dispose();
   }
@@ -91,8 +91,8 @@ class _FarmWizardScreenState extends ConsumerState<FarmWizardScreen> {
             areaCode: _areaCode!,
             sizeValue: size,
             sizeUnit: _unit,
-            lat: double.tryParse(_latCtrl.text),
-            lng: double.tryParse(_lngCtrl.text),
+            lat: _lat,
+            lng: _lng,
             addressText:
                 _addrCtrl.text.trim().isEmpty ? null : _addrCtrl.text.trim(),
           );
@@ -196,31 +196,34 @@ class _FarmWizardScreenState extends ConsumerState<FarmWizardScreen> {
                 ],
               ),
               const SizedBox(height: 18),
-              Text("Location (optional)", style: text.labelMedium),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: CtField(
-                      label: "Latitude",
-                      controller: _latCtrl,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      hint: "6.0329",
-                    ),
+              if (kMapsEnabled) ...[
+                FarmLocationPicker(
+                  lat: _lat,
+                  lng: _lng,
+                  onChanged: (v) => setState(() {
+                    _lat = v.$1;
+                    _lng = v.$2;
+                  }),
+                ),
+              ] else ...[
+                Text("Location (optional)", style: text.labelMedium),
+                const SizedBox(height: 8),
+                CtCard(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.map_outlined, color: Ct.faded),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          "Map picker is disabled — the app was built "
+                          "without a Google Maps key.",
+                          style: text.bodyMedium?.copyWith(color: Ct.faded),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: CtField(
-                      label: "Longitude",
-                      controller: _lngCtrl,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      hint: "80.2168",
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
               const SizedBox(height: 18),
               CtField(
                 label: "Address (optional)",

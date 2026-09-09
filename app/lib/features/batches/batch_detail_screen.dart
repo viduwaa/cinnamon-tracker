@@ -1,6 +1,9 @@
 import "package:flutter/material.dart";
+import "package:flutter/services.dart";
 import "package:flutter_riverpod/flutter_riverpod.dart";
 import "package:go_router/go_router.dart";
+import "package:google_maps_flutter/google_maps_flutter.dart";
+import "package:url_launcher/url_launcher.dart";
 import "../../app/theme.dart";
 import "../../core/auth/auth_state.dart";
 import "../../core/data/repositories.dart";
@@ -37,7 +40,12 @@ class BatchDetailScreen extends ConsumerWidget {
             final chain = (b["chain"] as List? ?? const [])
                 .map((e) => Map<String, dynamic>.from(e as Map))
                 .toList();
-            final origin = b["origin"] as Map?;
+            final origin = b["origin"] == null
+                ? null
+                : Map<String, dynamic>.from(b["origin"] as Map);
+            final verification = b["verification"] == null
+                ? const <String, dynamic>{}
+                : Map<String, dynamic>.from(b["verification"] as Map);
             final auth = ref.watch(authProvider);
             final myId = auth is SignedIn ? auth.user.id : null;
             final isMine =
@@ -47,6 +55,18 @@ class BatchDetailScreen extends ConsumerWidget {
             final holder = b["current_holder"] as Map?;
             final holderRole = b["current_holder_role"]?.toString() ??
                 (holder?["role"]?.toString() ?? "");
+            // Custody chip is acting-role aware, matching the Batches tab.
+            final activeRole = ref.watch(activeRoleProvider);
+            final accountRoles =
+                auth is SignedIn ? auth.user.roles : const ["FARMER"];
+            final actingRole = accountRoles.contains(activeRole)
+                ? activeRole
+                : (accountRoles.firstOrNull ?? "FARMER");
+            final heldAsActing = ctHeldUnderRole(
+              batch: b,
+              myId: myId,
+              actingRole: actingRole,
+            );
             // The newest handover tells us whether this was a sale.
             final lastTransfer = chain.lastWhere(
               (e) => e["event_type"].toString() == "TRANSFERRED",
@@ -88,7 +108,11 @@ class BatchDetailScreen extends ConsumerWidget {
                             ),
                           if (isMine)
                             StatusChip(
-                              label: "Assigned as ${ctRoleLabel(holderRole.isNotEmpty ? holderRole : "FARMER")}",
+                              label: heldAsActing
+                                  ? "Assigned as ${ctRoleLabel(holderRole.isNotEmpty ? holderRole : "FARMER")}"
+                                  // Held under a different of my roles — state
+                                  // true custody and the action that fixes it.
+                                  : "Held as ${ctRoleLabel(holderRole.isNotEmpty ? holderRole : "FARMER")} · acting as ${ctRoleLabel(actingRole)}",
                               color: Ct.leaf,
                             )
                           else if (holderRole.isNotEmpty)
@@ -108,31 +132,108 @@ class BatchDetailScreen extends ConsumerWidget {
                   const SizedBox(height: 8),
                   CtCard(
                     color: Ct.leafSoft,
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.park, color: Ct.leaf, size: 28),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                origin["farm_name"]?.toString() ?? "Farm",
-                                style: text.titleMedium,
+                        Row(
+                          children: [
+                            const Icon(Icons.park, color: Ct.leaf, size: 28),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    origin["farm_name"]?.toString() ?? "Farm",
+                                    style: text.titleMedium,
+                                  ),
+                                  Text(
+                                    "District ${origin["area_code"] ?? ""}",
+                                    style: text.bodyMedium
+                                        ?.copyWith(color: Ct.faded),
+                                  ),
+                                ],
                               ),
+                            ),
+                          ],
+                        ),
+                        // Harvest-origin proof: when the farmer chose to expose
+                        // exact coordinates, the server sends lat/lng here —
+                        // show the pinned map as authenticity evidence.
+                        if (origin["location"] is Map) ...[
+                          const SizedBox(height: 12),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(Ct.radiusSm),
+                            child: SizedBox(
+                              height: 140,
+                              width: double.infinity,
+                              child: GoogleMap(
+                                initialCameraPosition: CameraPosition(
+                                  target: LatLng(
+                                    (origin["location"]["lat"] as num).toDouble(),
+                                    (origin["location"]["lng"] as num).toDouble(),
+                                  ),
+                                  zoom: 14,
+                                ),
+                                markers: {
+                                  Marker(
+                                    markerId: const MarkerId("origin"),
+                                    position: LatLng(
+                                      (origin["location"]["lat"] as num)
+                                          .toDouble(),
+                                      (origin["location"]["lng"] as num)
+                                          .toDouble(),
+                                    ),
+                                    infoWindow: InfoWindow(
+                                      title: origin["farm_name"]?.toString() ??
+                                          "Harvest origin",
+                                    ),
+                                  ),
+                                },
+                                scrollGesturesEnabled: false,
+                                zoomGesturesEnabled: false,
+                                tiltGesturesEnabled: false,
+                                rotateGesturesEnabled: false,
+                                myLocationButtonEnabled: false,
+                                zoomControlsEnabled: false,
+                                mapToolbarEnabled: false,
+                                liteModeEnabled: true,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              const Icon(Icons.verified_outlined,
+                                  size: 14, color: Ct.leaf),
+                              const SizedBox(width: 4),
                               Text(
-                                "District ${origin["area_code"] ?? ""}",
-                                style: text.bodyMedium
+                                "Harvest origin pinned by the farmer at creation",
+                                style: text.labelSmall
                                     ?.copyWith(color: Ct.faded),
                               ),
                             ],
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ),
                   const SizedBox(height: 20),
                 ],
+                // Tamper-evidence banner — server-recomputed hash chain +
+                // Bitcoin anchor state, shared with the public verify portal.
+                _VerificationBanner(
+                  verification: verification,
+                  batchNo: b["batch_no"]?.toString() ?? "",
+                  onShowProof: () => _showProofSheet(
+                    context,
+                    ref,
+                    verification: verification,
+                    chain: chain,
+                    batchNo: b["batch_no"]?.toString() ?? "",
+                  ),
+                ),
+                const SizedBox(height: 16),
                 // Chain timeline
                 Text("Chain of Custody", style: text.titleLarge),
                 const SizedBox(height: 8),
@@ -392,4 +493,250 @@ class _Timeline extends StatelessWidget {
     if (d == null) return iso;
     return "${d.day}/${d.month}/${d.year} ${d.hour.toString().padLeft(2, "0")}:${d.minute.toString().padLeft(2, "0")}";
   }
+}
+
+/// Verdict banner above the chain timeline. Colors carry the meaning:
+/// green = hash chain intact AND every event Bitcoin-anchored,
+/// amber = chain intact, anchoring still pending,
+/// red = recomputed hash chain broken (evidence of tampering).
+class _VerificationBanner extends StatelessWidget {
+  const _VerificationBanner({
+    required this.verification,
+    required this.batchNo,
+    required this.onShowProof,
+  });
+
+  final Map<String, dynamic> verification;
+  final String batchNo;
+  final VoidCallback onShowProof;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final verdict = verification["verdict"]?.toString() ?? "PENDING";
+    final (icon, color, title, body) = switch (verdict) {
+      "AUTHENTIC" => (
+        Icons.verified,
+        Ct.leaf,
+        "Blockchain-verified",
+        "Hash chain intact · every event anchored to Bitcoin",
+      ),
+      "TAMPERED" => (
+        Icons.gpp_bad,
+        Ct.clay,
+        "Tampering detected",
+        "Custody records fail hash verification",
+      ),
+      _ => (
+        Icons.schedule,
+        Ct.quill,
+        "Verification pending",
+        "Records valid · Bitcoin anchoring in progress",
+      ),
+    };
+    final bg = verdict == "TAMPERED"
+        ? Ct.claySoft
+        : verdict == "AUTHENTIC"
+            ? Ct.leafSoft
+            : Ct.quillSoft;
+
+    return InkWell(
+      onTap: onShowProof,
+      borderRadius: BorderRadius.circular(Ct.radius),
+      child: CtCard(
+        color: bg,
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 30),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: text.titleMedium?.copyWith(color: color)),
+                  const SizedBox(height: 2),
+                  Text(body,
+                      style: text.bodySmall?.copyWith(color: Ct.faded)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Ct.faded),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Proof sheet: the raw evidence behind the verdict — per-event hashes,
+/// anchor attestations, merkle roots — copyable and independently checkable
+/// against the public verify portal.
+Future<void> _showProofSheet(
+  BuildContext context,
+  WidgetRef ref, {
+  required Map<String, dynamic> verification,
+  required List<Map<String, dynamic>> chain,
+  required String batchNo,
+}) {
+  final text = Theme.of(context).textTheme;
+  final anchors = (verification["anchors"] as List? ?? const [])
+      .map((a) => Map<String, dynamic>.from(a as Map))
+      .toList();
+  const verifyBase = String.fromEnvironment(
+    "VERIFY_BASE_URL",
+    defaultValue: "https://api-cinnamon.viduwa.dev/verify",
+  );
+  final verifyUrl = "$verifyBase/$batchNo";
+
+  return showModalBottomSheet(
+    context: context,
+    backgroundColor: Ct.paper,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(Ct.radius)),
+    ),
+    builder: (sheetContext) => SafeArea(
+      child: DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.65,
+        maxChildSize: 0.9,
+        builder: (_, scroll) => ListView(
+          controller: scroll,
+          padding: const EdgeInsets.all(Ct.pad),
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.fact_check, color: Ct.cinnamon),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text("Blockchain proof",
+                      style: text.titleLarge?.copyWith(fontFamily: Ct.display)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              "Any party can recompute these hashes and check the Bitcoin timestamps.",
+              style: text.bodySmall?.copyWith(color: Ct.faded),
+            ),
+            const SizedBox(height: 16),
+            Text("Anchors (${anchors.length})", style: text.titleMedium),
+            const SizedBox(height: 8),
+            if (anchors.isEmpty)
+              Text(
+                "Not yet anchored — the nightly job submits every event's hash to OpenTimestamps calendars, which anchor to Bitcoin within ~24h.",
+                style: text.bodyMedium?.copyWith(color: Ct.faded),
+              )
+            else
+              for (final a in anchors)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: CtCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Bitcoin · ${a["status"]?.toString() ?? "?"}",
+                          style: text.titleSmall
+                              ?.copyWith(color: Ct.leaf, fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 4),
+                        _proofRow(context, "Merkle root",
+                            a["merkle_root"]?.toString()),
+                        _proofRow(context, "Attestation",
+                            a["tx_hash"]?.toString()),
+                        _proofRow(context, "Anchored at",
+                            a["anchored_at"]?.toString()),
+                      ],
+                    ),
+                  ),
+                ),
+            const SizedBox(height: 10),
+            Text("Event hashes (${chain.length})", style: text.titleMedium),
+            const SizedBox(height: 8),
+            for (final e in chain)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: CtCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        e["summary"]?.toString() ??
+                            e["event_type"]?.toString() ??
+                        "Event",
+                        style: text.titleSmall,
+                      ),
+                      const SizedBox(height: 4),
+                      _proofRow(context, "SHA-256", e["event_hash"]?.toString()),
+                      if (e["anchored"] == true)
+                        const Row(
+                          children: [
+                            Icon(Icons.verified, size: 13, color: Ct.leaf),
+                            SizedBox(width: 4),
+                            Text("Anchored",
+                                style: TextStyle(
+                                    fontSize: 12, color: Ct.leaf)),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            const SizedBox(height: 10),
+            CtButton(
+              label: "Open public verification",
+              icon: Icons.open_in_new,
+              onPressed: () {
+                Navigator.pop(sheetContext);
+                launchUrl(
+                  Uri.parse(verifyUrl),
+                  mode: LaunchMode.externalApplication,
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// One labelled hash row with a copy button.
+Widget _proofRow(BuildContext context, String label, String? value) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 2),
+    child: Row(
+      children: [
+        Text("$label:", style: const TextStyle(fontSize: 12, color: Ct.faded)),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            value ?? "—",
+            style: const TextStyle(
+                fontSize: 12, fontFamily: "monospace", color: Ct.ink),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        IconButton(
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(Icons.copy, size: 15, color: Ct.faded),
+          onPressed: value == null
+              ? null
+              : () {
+                  Clipboard.setData(ClipboardData(text: value));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("$label copied"),
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                },
+        ),
+      ],
+    ),
+  );
 }

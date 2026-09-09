@@ -62,15 +62,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final batches = ref.watch(batchesProvider);
 
     final myId = user?.id;
-    bool heldByMe(Map<String, dynamic> b) {
-      if (myId == null || b["current_holder_id"]?.toString() != myId) return false;
-      if (b["status"]?.toString() == "IN_TRANSIT") return false;
-      final holderRole = b["current_holder_role"]?.toString();
-      if (holderRole == null || holderRole.isEmpty) {
-        return farmerView;
-      }
-      return holderRole == role;
-    }
+    bool heldByMe(Map<String, dynamic> b) =>
+        ctHeldUnderRole(batch: b, myId: myId, actingRole: role);
 
     final batchList =
         batches.asData?.value ?? const <Map<String, dynamic>>[];

@@ -18,6 +18,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _loading = false;
   String? _error;
   bool _notRegistered = false;
+  bool _canBiometricLogin = false;
+  bool _biometricLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometricAvailability();
+  }
+
+  Future<void> _checkBiometricAvailability() async {
+    final canLogin = await ref.read(authProvider.notifier).canQuickBiometricLogin();
+    if (mounted) {
+      setState(() => _canBiometricLogin = canLogin);
+    }
+  }
+
+  Future<void> _quickBiometricLogin() async {
+    setState(() => _biometricLoading = true);
+    try {
+      final success = await ref.read(authProvider.notifier).unlockWithBiometrics();
+      if (!mounted) return;
+      if (success) {
+        context.go("/home");
+      }
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _biometricLoading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -138,6 +167,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   loading: _loading,
                   onPressed: _send,
                 ),
+                if (_canBiometricLogin) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Expanded(child: Divider()),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          "OR  ·  හෝ",
+                          style: text.labelSmall?.copyWith(color: Ct.faded),
+                        ),
+                      ),
+                      const Expanded(child: Divider()),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  CtButton(
+                    label: "Log in with Fingerprint",
+                    icon: Icons.fingerprint_rounded,
+                    secondary: true,
+                    loading: _biometricLoading,
+                    onPressed: _quickBiometricLogin,
+                  ),
+                ],
                 const SizedBox(height: 8),
                 Center(
                   child: TextButton(

@@ -2,6 +2,7 @@ import "package:flutter/material.dart";
 import "package:flutter_riverpod/flutter_riverpod.dart";
 import "package:go_router/go_router.dart";
 import "../core/auth/auth_state.dart";
+import "../features/auth/biometric_lock_screen.dart";
 import "../features/auth/login_screen.dart";
 import "../features/auth/otp_screen.dart";
 import "../features/auth/register_screen.dart";
@@ -28,13 +29,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (auth is AuthRestoring) {
         return state.matchedLocation == "/boot" ? null : "/boot";
       }
+      if (auth is SessionLocked) {
+        return state.matchedLocation == "/lock" ? null : "/lock";
+      }
       final signedIn = auth is SignedIn;
       final atAuth = state.matchedLocation == "/login" ||
           state.matchedLocation == "/register" ||
           state.matchedLocation == "/otp";
       // Returning users are the default path — land them on /login.
       if (!signedIn && !atAuth) return "/login";
-      if (signedIn && atAuth) return "/home";
+      if (signedIn && (atAuth || state.matchedLocation == "/lock" || state.matchedLocation == "/boot")) {
+        return "/home";
+      }
       if (auth is SignedIn && state.matchedLocation.startsWith("/harvest")) {
         final activeRole = ref.read(activeRoleProvider);
         final userRoles = auth.user.roles;
@@ -49,6 +55,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: "/boot",
         builder: (context, state) =>
             const BootScreen(key: ValueKey("boot_screen")),
+      ),
+      GoRoute(
+        path: "/lock",
+        builder: (context, state) =>
+            const BiometricLockScreen(key: ValueKey("biometric_lock_screen")),
       ),
       GoRoute(
         path: "/login",
@@ -76,7 +87,14 @@ final routerProvider = Provider<GoRouter>((ref) {
                 BatchDetailScreen(batchId: state.pathParameters["id"]!),
           ),
           GoRoute(path: "/inbox", builder: (context, state) => const InboxScreen()),
-          GoRoute(path: "/qr", builder: (context, state) => const QrScreen()),
+          GoRoute(
+            path: "/qr",
+            builder: (context, state) => const QrScreen(),
+          ),
+          GoRoute(
+            path: "/qr/scan",
+            builder: (context, state) => const QrScanScreen(),
+          ),
           GoRoute(
             path: "/qr/show/:batchId",
             builder: (context, state) =>

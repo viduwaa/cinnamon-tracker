@@ -22,6 +22,28 @@ String ctRoleLabel(String role) => switch (role) {
       _ => role,
     };
 
+/// Does the signed-in user hold [batch] under their [actingRole]?
+///
+/// The shared custody invariant: a batch belongs to a role workflow, not
+/// just to a person — multi-role users act as one role at a time, and every
+/// list that "changes with the acting role" must ask exactly this question.
+/// Mirrors the transfer domain: a batch in IN_TRANSIT is nobody's custody
+/// until accepted, and a batch held under a role the account no longer has
+/// (stale data) falls back to the farmer view.
+bool ctHeldUnderRole({
+  required Map<String, dynamic> batch,
+  required String? myId,
+  required String actingRole,
+}) {
+  if (myId == null || batch["current_holder_id"]?.toString() != myId) {
+    return false;
+  }
+  if (batch["status"]?.toString() == "IN_TRANSIT") return false;
+  final holderRole = batch["current_holder_role"]?.toString();
+  if (holderRole == null || holderRole.isEmpty) return actingRole == "FARMER";
+  return holderRole == actingRole;
+}
+
 /// Primary action button — large, rounded, high-contrast.
 class CtButton extends StatelessWidget {
   const CtButton({

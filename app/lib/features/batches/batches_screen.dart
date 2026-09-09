@@ -21,6 +21,7 @@ class BatchesScreen extends ConsumerWidget {
     final role =
         roles.contains(activeRole) ? activeRole : (roles.firstOrNull ?? "FARMER");
     final isFarmer = role == "FARMER";
+    final myId = user?.id;
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -56,61 +57,92 @@ class BatchesScreen extends ConsumerWidget {
             ),
           ],
         ),
-        data: (list) => list.isEmpty
-            ? ListView(
-                children: [
-                  const SizedBox(height: 80),
-                  Padding(
-                    padding: const EdgeInsets.all(Ct.pad),
-                    child: CtCard(
-                      child: Column(
-                        children: [
-                          const Icon(Icons.inventory_2_outlined,
-                              size: 44, color: Ct.faded),
-                          const SizedBox(height: 10),
-                          Text("No batches yet", style: text.titleMedium),
-                          const SizedBox(height: 4),
+        data: (all) {
+          // The Batches tab mirrors the acting role — same custody question
+          // the Home section asks. Batches held under other roles of yours
+          // stay visible in those roles' views.
+          final list = all
+              .where((b) => ctHeldUnderRole(
+                    batch: b,
+                    myId: myId,
+                    actingRole: role,
+                  ))
+              .toList();
+          final otherRoleCount = all.length - list.length;
+
+          if (list.isEmpty) {
+            return ListView(
+              children: [
+                const SizedBox(height: 80),
+                Padding(
+                  padding: const EdgeInsets.all(Ct.pad),
+                  child: CtCard(
+                    child: Column(
+                      children: [
+                        const Icon(Icons.inventory_2_outlined,
+                            size: 44, color: Ct.faded),
+                        const SizedBox(height: 10),
+                        Text("No batches yet", style: text.titleMedium),
+                        const SizedBox(height: 4),
+                        Text(
+                          isFarmer
+                              ? "Record your first harvest to get started."
+                              : "Batches you receive and accept from your Inbox will appear here.",
+                          textAlign: TextAlign.center,
+                          style: text.bodyMedium?.copyWith(color: Ct.faded),
+                        ),
+                        if (otherRoleCount > 0) ...[
+                          const SizedBox(height: 8),
                           Text(
-                            isFarmer
-                                ? "Record your first harvest to get started."
-                                : "Batches you receive and accept from your Inbox will appear here.",
+                            "${otherRoleCount == 1 ? "1 batch is" : "$otherRoleCount batches are"} "
+                            "held under your other roles — switch role to see ${otherRoleCount == 1 ? "it" : "them"}.",
                             textAlign: TextAlign.center,
-                            style: text.bodyMedium?.copyWith(color: Ct.faded),
+                            style: text.bodySmall?.copyWith(color: Ct.faded),
                           ),
-                          if (isFarmer) ...[
-                            const SizedBox(height: 16),
-                            CtButton(
-                              label: "New Batch",
-                              icon: Icons.add,
-                              onPressed: () => context.push("/harvest"),
-                            ),
-                          ],
                         ],
-                      ),
+                        if (isFarmer) ...[
+                          const SizedBox(height: 16),
+                          CtButton(
+                            label: "New Batch",
+                            icon: Icons.add,
+                            onPressed: () => context.push("/harvest"),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                ],
-              )
-            : ListView.builder(
-                padding: const EdgeInsets.all(Ct.pad),
-                itemCount: list.length,
-                itemBuilder: (context, i) {
-                  final b = list[i];
-                  return _BatchRow(
-                    batch: b,
-                    onTap: () => context.push("/batch/${b["id"]}"),
-                  );
-                },
-              ),
+                ),
+              ],
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(Ct.pad),
+            itemCount: list.length,
+            itemBuilder: (context, i) {
+              final b = list[i];
+              return _BatchRow(
+                batch: b,
+                actingRole: role,
+                onTap: () => context.push("/batch/${b["id"]}"),
+              );
+            },
+          );
+        },
       ),
     );
   }
 }
 
 class _BatchRow extends ConsumerWidget {
-  const _BatchRow({required this.batch, required this.onTap});
+  const _BatchRow({
+    required this.batch,
+    required this.actingRole,
+    required this.onTap,
+  });
 
   final Map<String, dynamic> batch;
+  final String actingRole;
   final VoidCallback onTap;
 
   @override
@@ -123,16 +155,24 @@ class _BatchRow extends ConsumerWidget {
     final holderId = batch["current_holder_id"]?.toString();
     final holderRole = batch["current_holder_role"]?.toString();
     final isHeldByMe = myId != null && holderId == myId;
+    // Held under the role I am currently acting as (empty holder role is the
+    // farmer-era legacy data, same convention as the custody predicate).
+    final heldAsActingRole = ctHeldUnderRole(
+      batch: batch,
+      myId: myId,
+      actingRole: actingRole,
+    );
 
     final roleText = (holderRole != null && holderRole.isNotEmpty)
         ? ctRoleLabel(holderRole)
         : "Farmer";
+    final actingText = ctRoleLabel(actingRole);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: CtCard(
         onTap: onTap,
-        color: isHeldByMe ? Ct.paper : Ct.cream,
+        color: heldAsActingRole ? Ct.paper : Ct.cream,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -140,9 +180,11 @@ class _BatchRow extends ConsumerWidget {
               width: 46,
               height: 46,
               decoration: BoxDecoration(
-                color: isHeldByMe ? Ct.quillSoft : Ct.paper,
+                color: heldAsActingRole ? Ct.quillSoft : Ct.paper,
                 borderRadius: BorderRadius.circular(13),
-                border: isHeldByMe ? Border.all(color: Ct.quill.withValues(alpha: 0.3)) : null,
+                border: heldAsActingRole
+                    ? Border.all(color: Ct.quill.withValues(alpha: 0.3))
+                    : null,
               ),
               child: Icon(
                 batch["harvest_type"] == "T"
@@ -180,7 +222,7 @@ class _BatchRow extends ConsumerWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: isHeldByMe
+                      color: heldAsActingRole
                           ? Ct.leafSoft
                           : Ct.line.withValues(alpha: 0.5),
                       borderRadius: BorderRadius.circular(6),
@@ -189,20 +231,31 @@ class _BatchRow extends ConsumerWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          isHeldByMe ? Icons.account_circle : Icons.person_outline,
+                          heldAsActingRole
+                              ? Icons.account_circle
+                              : Icons.person_outline,
                           size: 14,
-                          color: isHeldByMe ? Ct.leaf : Ct.faded,
+                          color: heldAsActingRole ? Ct.leaf : Ct.faded,
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          isHeldByMe
-                              ? "Assigned to you as: $roleText"
-                              : "With: $roleText",
+                          switch ((isHeldByMe, heldAsActingRole)) {
+                            // Held under the role I am acting as — the chip
+                            // matches the acting role by construction.
+                            (true, true) => "Assigned to you as: $actingText",
+                            // Held under a different one of my roles — honest
+                            // custody plus the action that fixes it.
+                            (true, false) =>
+                              "Held as $roleText · switch to $roleText to act",
+                            // Somebody else's custody (or in transit to them).
+                            (false, _) => "With: $roleText",
+                          },
                           style: TextStyle(
                             fontFamily: Ct.body,
                             fontSize: 12,
-                            fontWeight: isHeldByMe ? FontWeight.w700 : FontWeight.w600,
-                            color: isHeldByMe ? Ct.leaf : Ct.faded,
+                            fontWeight:
+                                heldAsActingRole ? FontWeight.w700 : FontWeight.w600,
+                            color: heldAsActingRole ? Ct.leaf : Ct.faded,
                           ),
                         ),
                       ],

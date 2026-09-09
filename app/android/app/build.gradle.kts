@@ -1,7 +1,22 @@
+import java.util.Base64
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// Dart-defines arrive base64-encoded, comma-joined (see Flutter's gradle_utils).
+val dartDefines: Map<String, String> by lazy {
+    (project.findProperty("dart-defines") as String?)
+        ?.split(',')
+        ?.mapNotNull { entry ->
+            if (entry.isBlank()) null else {
+                val decoded = String(Base64.getDecoder().decode(entry), Charsets.UTF_8)
+                val idx = decoded.indexOf('=')
+                if (idx <= 0) null else decoded.substring(0, idx) to decoded.substring(idx + 1)
+            }
+        }?.toMap() ?: emptyMap()
 }
 
 android {
@@ -28,6 +43,11 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Google Maps SDK key from `flutter run --dart-define=MAPS_API_KEY=...`.
+        // Flutter forwards dart-defines base64-encoded, comma-joined in the
+        // `dart-defines` property. Empty default keeps builds green without a
+        // key; the map picker degrades gracefully (see maps_api_key.dart).
+        manifestPlaceholders["MAPS_API_KEY"] = dartDefines["MAPS_API_KEY"] ?: ""
     }
 
     buildTypes {

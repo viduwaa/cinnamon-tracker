@@ -1,10 +1,12 @@
 import "dart:convert";
 
+import "package:flutter/foundation.dart";
 import "package:flutter_riverpod/flutter_riverpod.dart";
 import "package:flutter_secure_storage/flutter_secure_storage.dart";
 
 import "../api/api_client.dart";
 import "../db/app_database.dart";
+import "biometric_service.dart";
 
 /// Authenticated user profile.
 class UserProfile {
@@ -59,6 +61,12 @@ class SignedIn extends AuthState {
   final String token;
 }
 
+class SessionLocked extends AuthState {
+  SessionLocked(this.user, this.token);
+  final UserProfile user;
+  final String token;
+}
+
 /// Persists the session: JWT in flutter_secure_storage, profile JSON in the
 /// drift MetaKv table (flutter-plan §3.1 — the JWT never touches drift).
 class AuthRepository {
@@ -100,24 +108,49 @@ class AuthRepository {
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier(this._repo, [ApiClient? api]) : super(AuthRestoring()) {
+  AuthNotifier(
+    this._repo,
+    this._biometricService, [
+    ApiClient? api,
+  ]) : super(AuthRestoring()) {
     _api = api ?? ApiClient(tokenProvider: () => token);
     _restore();
   }
 
   late final ApiClient _api;
   final AuthRepository _repo;
+  final BiometricService _biometricService;
 
   /// Restores a persisted session without touching the network: if a token
-  /// exists, the user goes straight to SignedIn using the cached profile.
+  /// exists, checks whether biometric lock is enabled before transitioning to SignedIn.
   Future<void> _restore() async {
+    debugPrint("[DEBUG-BOOT] restore: start");
     try {
       final saved = await _repo.load();
+      debugPrint("[DEBUG-BOOT] restore: repo.load -> ${saved == null ? "null" : "session"}");
       if (!mounted) return;
-      state = saved == null ? SignedOut() : SignedIn(saved.value, saved.key);
-    } catch (_) {
+      if (saved == null) {
+        debugPrint("[DEBUG-BOOT] restore: -> SignedOut");
+        state = SignedOut();
+        return;
+      }
+
+      final biometricEnabled = await _biometricService.isBiometricEnabled();
+      final deviceSupported = await _biometricService.isDeviceSupported();
+      debugPrint("[DEBUG-BOOT] restore: biometric=$biometricEnabled supported=$deviceSupported");
+
+      if (!mounted) return;
+      if (biometricEnabled && deviceSupported) {
+        debugPrint("[DEBUG-BOOT] restore: -> SessionLocked");
+        state = SessionLocked(saved.value, saved.key);
+      } else {
+        debugPrint("[DEBUG-BOOT] restore: -> SignedIn");
+        state = SignedIn(saved.value, saved.key);
+      }
+    } catch (e, s) {
       // Storage failure must still resolve the boot state (never stay
       // AuthRestoring and hold the router on /boot forever).
+      debugPrint("[DEBUG-BOOT] restore: ERROR $e\n$s");
       if (!mounted) return;
       state = SignedOut();
     }
@@ -156,7 +189,53 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   String? get token {
     final s = state;
-    return s is SignedIn ? s.token : null;
+    if (s is SignedIn) return s.token;
+    if (s is SessionLocked) return s.token;
+    return null;
+  }
+
+  /// Transitions a SessionLocked state to SignedIn.
+  void unlockSession() {
+    final s = state;
+    if (s is SessionLocked) {
+      state = SignedIn(s.user, s.token);
+    }
+  }
+
+  /// Triggers device biometric authentication to unlock the current locked session or quick-login.
+  Future<bool> unlockWithBiometrics() async {
+    final s = state;
+    if (s is SessionLocked) {
+      final authenticated = await _biometricService.authenticate(
+        localizedReason: "Scan fingerprint to unlock Cinnamon Trace\nකුරුඳු සලකුණ වෙත පිවිසීමට ඇඟිලි සලකුණ තහවුරු කරන්න",
+      );
+      if (authenticated) {
+        state = SignedIn(s.user, s.token);
+        return true;
+      }
+      return false;
+    }
+
+    final saved = await _repo.load();
+    if (saved != null) {
+      final authenticated = await _biometricService.authenticate(
+        localizedReason: "Scan fingerprint to log in\nඇඟිලි සලකුණෙන් පිවිසීමට තහවුරු කරන්න",
+      );
+      if (authenticated) {
+        state = SignedIn(saved.value, saved.key);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Checks if quick biometric login is available from the login screen.
+  Future<bool> canQuickBiometricLogin() async {
+    final saved = await _repo.load();
+    if (saved == null) return false;
+    final enabled = await _biometricService.isBiometricEnabled();
+    final supported = await _biometricService.isDeviceSupported();
+    return enabled && supported;
   }
 
   /// Adds a new role to the authenticated user profile.
@@ -203,6 +282,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> signOut() async {
+    await _biometricService.setBiometricEnabled(false);
     await _repo.clear();
     state = SignedOut();
   }
@@ -228,7 +308,10 @@ final apiClientProvider = Provider<ApiClient>((ref) {
 });
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>(
-  (ref) => AuthNotifier(ref.watch(authRepoProvider)),
+  (ref) => AuthNotifier(
+    ref.watch(authRepoProvider),
+    ref.watch(biometricServiceProvider),
+  ),
 );
 
 /// The role the user is currently acting as (for multi-role users).
