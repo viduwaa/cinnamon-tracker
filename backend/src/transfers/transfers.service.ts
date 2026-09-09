@@ -139,8 +139,34 @@ export class TransfersService {
       const recipientRoles = await this.getRoles(dto.to_user_id);
       const allowed = TRANSFER_MATRIX[senderRole] ?? [];
 
+      // Multi-role users hand over to themselves to switch the batch's
+      // holding role (farmer → their own processor). The handover stays a
+      // real custody event: IN_TRANSIT, then accept — same as any transfer.
+      const selfTransfer = dto.to_user_id === userId;
       let validTarget: string | undefined;
-      if (dto.to_role) {
+      if (selfTransfer) {
+        // No second party whose roles could disambiguate: the target role
+        // must be named, and it must be an actual change of holding role.
+        if (!dto.to_role) {
+          throw Errors.badRequest(
+            "SELF_ROLE_REQUIRED",
+            "Choose which of your roles receives this batch",
+          );
+        }
+        if (dto.to_role === senderRole) {
+          throw Errors.conflict(
+            "SELF_SAME_ROLE",
+            `Batch is already held as ${senderRole}`,
+          );
+        }
+        if (!recipientRoles.includes(dto.to_role) || !allowed.includes(dto.to_role)) {
+          throw Errors.forbidden(
+            "TRANSFER_NOT_ALLOWED",
+            `A ${senderRole} cannot transfer to this recipient as ${dto.to_role}`,
+          );
+        }
+        validTarget = dto.to_role;
+      } else if (dto.to_role) {
         if (!recipientRoles.includes(dto.to_role) || !allowed.includes(dto.to_role)) {
           throw Errors.forbidden(
             "TRANSFER_NOT_ALLOWED",
@@ -150,16 +176,12 @@ export class TransfersService {
         validTarget = dto.to_role;
       } else {
         validTarget = recipientRoles.find((r) => allowed.includes(r));
-      }
-
-      if (!validTarget) {
-        throw Errors.forbidden(
-          "TRANSFER_NOT_ALLOWED",
-          `A ${senderRole} cannot transfer to this recipient's roles`,
-        );
-      }
-      if (dto.to_user_id === userId) {
-        throw Errors.badRequest("SELF_TRANSFER", "Cannot transfer to yourself");
+        if (!validTarget) {
+          throw Errors.forbidden(
+            "TRANSFER_NOT_ALLOWED",
+            `A ${senderRole} cannot transfer to this recipient's roles`,
+          );
+        }
       }
 
       await client.query(

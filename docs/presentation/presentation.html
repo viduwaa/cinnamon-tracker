@@ -1,0 +1,1492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cinnamon Trace — Executive Stakeholder Presentation</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* -------------------------------------------------------------
+       DESIGN SYSTEM TOKENS (agency-ui-designer specification)
+       ------------------------------------------------------------- */
+    :root {
+      --color-primary: #8B4A2B;
+      --color-primary-hover: #73391F;
+      --color-primary-light: #F4EBE4;
+      --color-accent: #D98E32;
+      --color-accent-light: #FDF4E7;
+      
+      --color-bg: #FAF3E7;
+      --color-surface: #FFFDF8;
+      --color-surface-elevated: #FFFFFF;
+      --color-border: #E8DCC8;
+      --color-border-subtle: #F0E6D5;
+      
+      --color-text-title: #2B1D12;
+      --color-text-body: #4A3A2C;
+      --color-text-muted: #7A6A58;
+      
+      --color-success: #166534;
+      --color-success-bg: #DCFCE7;
+      --color-success-border: #86EFAC;
+      
+      --color-warning: #92400E;
+      --color-warning-bg: #FEF3C7;
+      --color-warning-border: #FCD34D;
+      
+      --color-danger: #991B1B;
+      --color-danger-bg: #FEE2E2;
+      --color-danger-border: #FCA5A5;
+
+      --font-display: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+
+      --shadow-sm: 0 2px 4px rgba(43, 29, 18, 0.04);
+      --shadow-md: 0 8px 20px rgba(43, 29, 18, 0.08);
+      --shadow-lg: 0 16px 36px rgba(43, 29, 18, 0.12);
+      --shadow-glow: 0 0 24px rgba(217, 142, 50, 0.2);
+
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 22px;
+      --radius-full: 9999px;
+
+      --transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background-color: #1A120B;
+      color: var(--color-text-body);
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+
+    /* -------------------------------------------------------------
+       TOP NAVIGATION & STATUS BAR
+       ------------------------------------------------------------- */
+    header.deck-header {
+      background: rgba(26, 18, 11, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(232, 220, 200, 0.15);
+      padding: 12px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 100;
+      height: 60px;
+    }
+
+    .brand-mark {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: #FAF3E7;
+      text-decoration: none;
+    }
+
+    .brand-logo-badge {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      font-size: 18px;
+      box-shadow: 0 2px 8px rgba(217, 142, 50, 0.3);
+    }
+
+    .brand-title {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 17px;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-subtitle {
+      font-size: 11px;
+      color: #CBB9A5;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .deck-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-ctrl {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #FAF3E7;
+      padding: 7px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: var(--transition);
+    }
+
+    .btn-ctrl:hover {
+      background: rgba(255, 255, 255, 0.18);
+      border-color: rgba(255, 255, 255, 0.3);
+      transform: translateY(-1px);
+    }
+
+    .btn-ctrl.active {
+      background: var(--color-accent);
+      color: #1A120B;
+      border-color: var(--color-accent);
+      font-weight: 600;
+    }
+
+    .slide-counter {
+      color: #CBB9A5;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      min-width: 65px;
+      text-align: center;
+    }
+
+    /* -------------------------------------------------------------
+       SLIDE VIEWPORT & STAGE
+       ------------------------------------------------------------- */
+    main.deck-stage {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      position: relative;
+      background: radial-gradient(circle at center, #261B12 0%, #130B06 100%);
+    }
+
+    .slide-card-container {
+      width: 100%;
+      max-width: 1220px;
+      aspect-ratio: 16 / 9;
+      max-height: calc(100vh - 120px);
+      background: var(--color-bg);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg), 0 0 50px rgba(0, 0, 0, 0.6);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--color-border);
+    }
+
+    /* Individual Slide */
+    .slide {
+      position: absolute;
+      inset: 0;
+      padding: 48px 56px;
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(30px) scale(0.99);
+      transition: opacity 0.35s ease, transform 0.35s ease;
+      background: var(--color-bg);
+    }
+
+    .slide.active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(0) scale(1);
+      z-index: 10;
+    }
+
+    /* -------------------------------------------------------------
+       TYPOGRAPHY & SLIDE HEADER
+       ------------------------------------------------------------- */
+    .slide-meta-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--color-primary-light);
+      color: var(--color-primary);
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 12px;
+      align-self: flex-start;
+      border: 1px solid rgba(139, 74, 43, 0.2);
+    }
+
+    .slide-title {
+      font-family: var(--font-display);
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--color-text-title);
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      margin-bottom: 8px;
+    }
+
+    .slide-subtitle {
+      font-size: 16px;
+      color: var(--color-text-muted);
+      line-height: 1.5;
+      margin-bottom: 24px;
+      max-width: 900px;
+    }
+
+    .slide-content-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 0;
+    }
+
+    /* -------------------------------------------------------------
+       SLIDE COMPONENT DESIGNS (agency-ui-designer specifications)
+       ------------------------------------------------------------- */
+
+    /* Slide 1: Hero Cover */
+    .hero-slide-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 40px;
+      align-items: center;
+      height: 100%;
+    }
+
+    .hero-big-title {
+      font-family: var(--font-display);
+      font-size: 44px;
+      font-weight: 800;
+      line-height: 1.15;
+      color: var(--color-text-title);
+      letter-spacing: -0.03em;
+      margin-bottom: 18px;
+    }
+
+    .hero-big-title span {
+      background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-desc {
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--color-text-body);
+      margin-bottom: 28px;
+    }
+
+    .hero-feature-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .hero-tag {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      padding: 8px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-text-body);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .hero-showcase-card {
+      background: linear-gradient(145deg, #FFFDF8, #F4EBE4);
+      border: 2px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      box-shadow: var(--shadow-md);
+      position: relative;
+    }
+
+    .badge-pure-ceylon {
+      position: absolute;
+      top: -14px;
+      right: 20px;
+      background: var(--color-success);
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 14px;
+      border-radius: var(--radius-full);
+      box-shadow: 0 4px 10px rgba(22, 101, 52, 0.3);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Grid cards for 2-column or 3-column slides */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+      height: 100%;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      height: 100%;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      height: 100%;
+    }
+
+    .info-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: 22px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      transition: var(--transition);
+    }
+
+    .info-card:hover {
+      border-color: var(--color-accent);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .card-icon-bubble {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: var(--color-primary-light);
+      color: var(--color-primary);
+      display: grid;
+      place-items: center;
+      font-size: 22px;
+      margin-bottom: 14px;
+    }
+
+    .info-card.danger-card .card-icon-bubble {
+      background: var(--color-danger-bg);
+      color: var(--color-danger);
+    }
+
+    .info-card.success-card .card-icon-bubble {
+      background: var(--color-success-bg);
+      color: var(--color-success);
+    }
+
+    .info-card h3 {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--color-text-title);
+      margin-bottom: 8px;
+    }
+
+    .info-card p {
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--color-text-body);
+      flex: 1;
+    }
+
+    .info-card .card-metric {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px dashed var(--color-border);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-primary);
+    }
+
+    /* 5-Step Process Timeline */
+    .flow-steps-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 14px;
+      height: 100%;
+      align-items: stretch;
+    }
+
+    .step-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: 16px 14px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      box-shadow: var(--shadow-sm);
+      transition: var(--transition);
+    }
+
+    .step-card:hover {
+      border-color: var(--color-accent);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-3px);
+    }
+
+    .step-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: var(--color-primary);
+      color: white;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .step-card h4 {
+      font-family: var(--font-display);
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--color-text-title);
+      margin-bottom: 6px;
+      line-height: 1.25;
+    }
+
+    .step-card .role-pill {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      background: var(--color-accent-light);
+      color: var(--color-warning);
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-bottom: 8px;
+      align-self: flex-start;
+    }
+
+    .step-card p {
+      font-size: 12.5px;
+      line-height: 1.45;
+      color: var(--color-text-body);
+      flex: 1;
+    }
+
+    .step-card .step-footer-pill {
+      margin-top: 10px;
+      background: var(--color-primary-light);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--color-primary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Mobile Phone Mockup UI */
+    .phone-mockup-wrapper {
+      width: 250px;
+      height: 400px;
+      background: #2B1D12;
+      border-radius: 36px;
+      padding: 10px;
+      box-shadow: 0 14px 28px rgba(0,0,0,0.25), 0 0 0 2px rgba(255,255,255,0.1);
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .phone-screen {
+      background: #FAF3E7;
+      border-radius: 28px;
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      padding: 14px;
+      font-size: 11px;
+      position: relative;
+    }
+
+    .phone-notch {
+      width: 60px;
+      height: 14px;
+      background: #2B1D12;
+      border-radius: 0 0 10px 10px;
+      margin: -14px auto 8px;
+    }
+
+    /* Blockchain & Notary Visual Diagram */
+    .blockchain-arch-container {
+      display: grid;
+      grid-template-columns: 1fr 60px 1fr 60px 1.1fr;
+      align-items: center;
+      gap: 12px;
+      height: 100%;
+    }
+
+    .arch-pillar-box {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: 22px 18px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .arch-pillar-box.highlight {
+      border: 2px solid var(--color-accent);
+      background: linear-gradient(180deg, #FFFDF8 0%, #FAF3E7 100%);
+      box-shadow: var(--shadow-glow);
+    }
+
+    .arch-connector {
+      display: grid;
+      place-items: center;
+      color: var(--color-accent);
+      font-size: 28px;
+      font-weight: bold;
+    }
+
+    /* Verdict Simulation Component */
+    .verdict-simulator-box {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 32px;
+      align-items: center;
+    }
+
+    .verdict-interactive-badge {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 18px 22px;
+      border-radius: var(--radius-md);
+      margin-bottom: 16px;
+      transition: var(--transition);
+    }
+
+    .verdict-interactive-badge.authentic {
+      background: var(--color-success-bg);
+      border: 2px solid var(--color-success-border);
+      color: var(--color-success);
+    }
+
+    .verdict-interactive-badge.pending {
+      background: var(--color-warning-bg);
+      border: 2px solid var(--color-warning-border);
+      color: var(--color-warning);
+    }
+
+    .verdict-interactive-badge.tampered {
+      background: var(--color-danger-bg);
+      border: 2px solid var(--color-danger-border);
+      color: var(--color-danger);
+    }
+
+    .verdict-badge-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: currentColor;
+      color: white;
+      display: grid;
+      place-items: center;
+      font-size: 24px;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    /* -------------------------------------------------------------
+       SPEAKER NOTES DRAWER
+       ------------------------------------------------------------- */
+    aside.speaker-notes-drawer {
+      position: fixed;
+      bottom: 60px;
+      left: 0;
+      right: 0;
+      background: #110B07;
+      color: #E8DCC8;
+      border-top: 2px solid var(--color-accent);
+      padding: 20px 36px;
+      transform: translateY(110%);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 200;
+      max-height: 280px;
+      overflow-y: auto;
+      box-shadow: 0 -10px 30px rgba(0,0,0,0.7);
+    }
+
+    aside.speaker-notes-drawer.open {
+      transform: translateY(0);
+    }
+
+    .notes-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .notes-title {
+      font-family: var(--font-display);
+      font-size: 14px;
+      color: var(--color-accent);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .notes-body {
+      font-size: 15px;
+      line-height: 1.6;
+      color: #FAF3E7;
+    }
+
+    .notes-cue {
+      display: inline-block;
+      margin-top: 10px;
+      font-size: 12.5px;
+      color: #D98E32;
+      background: rgba(217, 142, 50, 0.15);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+
+    /* -------------------------------------------------------------
+       BOTTOM TOOLBAR / FOOTER
+       ------------------------------------------------------------- */
+    footer.deck-footer {
+      background: rgba(26, 18, 11, 0.95);
+      border-top: 1px solid rgba(232, 220, 200, 0.12);
+      padding: 8px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 48px;
+      z-index: 100;
+    }
+
+    .nav-arrow-group {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-nav {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #FAF3E7;
+      width: 34px;
+      height: 34px;
+      border-radius: var(--radius-sm);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      font-size: 15px;
+      transition: var(--transition);
+    }
+
+    .btn-nav:hover {
+      background: var(--color-primary);
+      border-color: var(--color-primary);
+    }
+
+    .slide-progress-dots {
+      display: flex;
+      gap: 8px;
+    }
+
+    .progress-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.2);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .progress-dot.active {
+      background: var(--color-accent);
+      transform: scale(1.3);
+      box-shadow: 0 0 8px var(--color-accent);
+    }
+
+    .keyboard-hint {
+      font-size: 12px;
+      color: #A89582;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    kbd {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    /* -------------------------------------------------------------
+       RESPONSIVE ADAPTATIONS
+       ------------------------------------------------------------- */
+    @media (max-width: 1024px) {
+      .slide { padding: 32px 36px; }
+      .slide-title { font-size: 26px; }
+      .grid-3, .grid-4 { grid-template-columns: repeat(2, 1fr); }
+      .flow-steps-grid { grid-template-columns: repeat(3, 1fr); }
+      .blockchain-arch-container { grid-template-columns: 1fr; gap: 16px; }
+      .arch-connector { transform: rotate(90deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header class="deck-header">
+    <a href="#" class="brand-mark">
+      <div class="brand-logo-badge">🌿</div>
+      <div>
+        <div class="brand-title">Cinnamon Trace</div>
+        <div class="brand-subtitle">Executive Stakeholder Deck</div>
+      </div>
+    </a>
+
+    <div class="deck-controls">
+      <button class="btn-ctrl" id="btn-toggle-notes" title="Toggle Speaker Notes (Key: S)">
+        <span id="notes-icon">📝</span> Speaker Notes
+      </button>
+      <button class="btn-ctrl" id="btn-fullscreen" title="Toggle Fullscreen (Key: F)">
+        ⛶ Fullscreen
+      </button>
+      <div class="slide-counter" id="slide-indicator">01 / 10</div>
+    </div>
+  </header>
+
+  <!-- Presentation Stage & Active Slide Cards -->
+  <main class="deck-stage">
+    <div class="slide-card-container">
+
+      <!-- =========================================================
+           SLIDE 1: HERO TITLE & EXECUTIVE VISION
+           ========================================================= -->
+      <section class="slide active" data-slide="1">
+        <div class="slide-meta-badge">Sri Lanka Pure Ceylon Cinnamon · Strategic Initiative</div>
+        <div class="slide-content-area">
+          <div class="hero-slide-grid">
+            <div>
+              <h1 class="hero-big-title">
+                Protecting Ceylon Cinnamon with <span>Cryptographic Provenance</span>
+              </h1>
+              <p class="hero-desc">
+                An enterprise-grade, mobile-first traceability platform that secures our national spice heritage from farm plot to European export containers—fully EUDR compliant with zero-cost Bitcoin verification.
+              </p>
+              <div class="hero-feature-tags">
+                <div class="hero-tag">🇪🇺 100% EUDR Compliant</div>
+                <div class="hero-tag">🔒 Zero-Cost Bitcoin Anchoring</div>
+                <div class="hero-tag">📱 Works 100% Offline</div>
+                <div class="hero-tag">⚡ 1-Second Public Verification</div>
+              </div>
+            </div>
+
+            <div>
+              <div class="hero-showcase-card">
+                <div class="badge-pure-ceylon">✓ Verified Ceylon Origin</div>
+                <div style="font-size: 13px; color: var(--color-text-muted); margin-bottom: 8px;">SAMPLE EXPORT LOT</div>
+                <div style="font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: var(--color-primary); margin-bottom: 12px;">
+                  EX-001-2026-EXP-MERGED(x5)
+                </div>
+                <div style="background: white; border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 14px;">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px;">
+                    <span style="color: var(--color-text-muted);">Farm Origins</span>
+                    <b>5 Certified Smallholder Plots</b>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px;">
+                    <span style="color: var(--color-text-muted);">Region</span>
+                    <b>Galle & Matara Belt (GM)</b>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                    <span style="color: var(--color-text-muted);">Bitcoin Proof</span>
+                    <span style="color: var(--color-success); font-weight: 600;">✓ Block-Anchored (OTS)</span>
+                  </div>
+                </div>
+                <div style="font-size: 12px; color: var(--color-text-muted); text-align: center;">
+                  Presented to the Executive Leadership & Industry Partners
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =========================================================
+           SLIDE 2: THE DUAL THREAT / WHY WE CREATED THIS
+           ========================================================= -->
+      <section class="slide" data-slide="2">
+        <div class="slide-meta-badge">The Strategic 'Why' · Urgent Commercial Drivers</div>
+        <h2 class="slide-title">The Dual Challenge Threatening Our Industry</h2>
+        <p class="slide-subtitle">Traditional paper logbooks and trust-based handoffs can no longer survive European regulatory barriers or stop counterfeit substitution.</p>
+        
+        <div class="slide-content-area">
+          <div class="grid-2">
+            <!-- Threat 1 -->
+            <div class="info-card danger-card">
+              <div class="card-icon-bubble">🇪🇺</div>
+              <h3>1. The EUDR Compliance Deadline</h3>
+              <p>
+                The European Union Deforestation Regulation mandates that <strong>every export container must carry exact GPS plot coordinates</strong> proving zero deforestation after Dec 2020. Exporters lacking digital plot proof face immediate customs impoundment, fines, and total European market exclusion.
+              </p>
+              <div class="card-metric" style="color: var(--color-danger);">
+                ⚠️ High Risk: Paper certs no longer accepted at EU borders
+              </div>
+            </div>
+
+            <!-- Threat 2 -->
+            <div class="info-card danger-card">
+              <div class="card-icon-bubble">⚠️</div>
+              <h3>2. The Cassia Counterfeit Erosion</h3>
+              <p>
+                Cheap, thick-bark <em>Cassia</em> (laden with toxic coumarin) is routinely mislabeled and blended with authentic Ceylon Cinnamon in overseas markets. Without verifiable digital proof of origin, Sri Lanka's rightful <strong>25% Ceylon brand premium</strong> is stolen by counterfeiters.
+              </p>
+              <div class="card-metric" style="color: var(--color-danger);">
+                📉 Economic Cost: Millions in lost price realization annually
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =========================================================
+           SLIDE 3: THE SOLUTION OVERVIEW
+           ========================================================= -->
+      <section class="slide" data-slide="3">
+        <div class="slide-meta-badge">The Solution · Architecture Overview</div>
+        <h2 class="slide-title">Introducing Cinnamon Trace: Mobile Trust Backbone</h2>
+        <p class="slide-subtitle">Purpose-built for Sri Lanka's rural terrain — fast, offline-capable, and designed for every stakeholder in the chain.</p>
+
+        <div class="slide-content-area">
+          <div class="grid-4">
+            <div class="info-card">
+              <div class="card-icon-bubble">🧑‍🌾</div>
+              <h3>Farmer App</h3>
+              <p>One-tap GPS plot registration, simple harvest logging (quills/trees), biometric login, and instant locked batch QR generation.</p>
+              <div class="card-metric">Offline SQLite Sync</div>
+            </div>
+
+            <div class="info-card">
+              <div class="card-icon-bubble">🚚</div>
+              <h3>Collector App</h3>
+              <p>Rapid QR hand-off scanning. Confirms physical receipt in seconds without ever disturbing original batch ancestry.</p>
+              <div class="card-metric">Locked Batch Numbers</div>
+            </div>
+
+            <div class="info-card">
+              <div class="card-icon-bubble">🏭</div>
+              <h3>Processor Portal</h3>
+              <p>Monitors peeling, drying, and grading stages. Automatically tracks input vs. output weights to flag shrinkage or yield loss.</p>
+              <div class="card-metric">Stage Tags (/P1, /P2)</div>
+            </div>
+
+            <div class="info-card">
+              <div class="card-icon-bubble">📦</div>
+              <h3>Exporter Suite</h3>
+              <p>Merges multiple farm batches into export lots. Generates one-click EUDR compliance dossiers for European customs.</p>
+              <div class="card-metric">Multi-plot GPS Dossier</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =========================================================
+           SLIDE 4: THE 5-STEP FLOW: STEP 1 & 2
+           ========================================================= -->
+      <section class="slide" data-slide="4">
+        <div class="slide-meta-badge">Operational Flow · Phase 1: Origin & Custody</div>
+        <h2 class="slide-title">Step 1 & 2: Origin Pinning & Frictionless Handoff</h2>
+        <p class="slide-subtitle">How we capture unshakeable origin data at the farm gate in less than 30 seconds.</p>
+
+        <div class="slide-content-area">
+          <div class="grid-2" style="align-items: center;">
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+              <div class="info-card success-card">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                  <span class="step-badge">1</span>
+                  <h3 style="margin: 0;">Farm Plot Registration & Daily Harvest</h3>
+                </div>
+                <p>
+                  Farmer drops a pin on their plantation parcel to capture latitude/longitude and land size (perches/acres). On harvest day, entering the weight creates an <strong>immutable root batch code</strong>:
+                </p>
+                <div style="background: var(--color-primary-light); padding: 8px 12px; border-radius: 6px; font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--color-primary); margin-top: 8px;">
+                  GM-172-01-2026-FM-A-T
+                </div>
+                <div style="font-size: 12px; color: var(--color-text-muted); margin-top: 4px;">
+                  [Galle/Matara] · [Day 172] · [Batch 01] · [Farmer A] · [Tree Harvest]
+                </div>
+              </div>
+
+              <div class="info-card">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                  <span class="step-badge" style="background: var(--color-accent);">2</span>
+                  <h3 style="margin: 0;">Frictionless Custody Transfer</h3>
+                </div>
+                <p>
+                  The collector scans the farmer's QR code. The system logs the transfer event with GPS and timestamp. Upstream farm ancestry remains visible; downstream commercial buyers remain confidential.
+                </p>
+              </div>
+            </div>
+
+            <!-- Mobile Phone Mockup -->
+            <div class="phone-mockup-wrapper">
+              <div class="phone-screen">
+                <div class="phone-notch"></div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <b style="color: var(--color-primary);">🌿 Harvest Entry</b>
+                  <span style="background: #166534; color: white; padding: 2px 6px; border-radius: 4px; font-size: 9px;">GPS LOCKED</span>
+                </div>
+                <div style="background: white; border-radius: 8px; padding: 8px; margin-bottom: 8px; border: 1px solid var(--color-border);">
+                  <div style="color: var(--color-text-muted); font-size: 9px;">PLOT GEOLOCATION</div>
+                  <div style="font-family: var(--font-mono); font-size: 10px; font-weight: 600;">6.0535° N, 80.2210° E</div>
+                  <div style="font-size: 9px; color: #166534;">✓ EUDR Validated (Galle Belt)</div>
+                </div>
+                <div style="background: white; border-radius: 8px; padding: 8px; margin-bottom: 8px; border: 1px solid var(--color-border);">
+                  <div style="color: var(--color-text-muted); font-size: 9px;">RECORD HARVEST</div>
+                  <div style="font-size: 14px; font-weight: 700; color: var(--color-primary);">85.50 kg</div>
+                  <div style="font-size: 9px; color: var(--color-text-muted);">Type: True Ceylon Quills (Q)</div>
+                </div>
+                <div style="background: var(--color-primary); color: white; text-align: center; padding: 7px; border-radius: 6px; font-weight: 600; margin-top: auto;">
+                  Generate Locked Batch QR
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =========================================================
+           SLIDE 5: THE 5-STEP FLOW: STEP 3 & 4
+           ========================================================= -->
+      <section class="slide" data-slide="5">
+        <div class="slide-meta-badge">Operational Flow · Phase 2: Processing & Export</div>
+        <h2 class="slide-title">Step 3 & 4: Value-Addition & Export Dossier</h2>
+        <p class="slide-subtitle">Tracking yield transformation and consolidating multi-farm provenance into container-ready export lots.</p>
+
+        <div class="slide-content-area">
+          <div class="grid-2">
+            <!-- Step 3 -->
+            <div class="info-card">
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                <span class="step-badge" style="background: #5B21B6;">3</span>
+                <div>
+                  <h3 style="margin: 0;">Processing & Yield Reconciliation</h3>
+                  <span style="font-size: 12px; color: var(--color-text-muted);">Peeling · Quilling · Moisture Grading</span>
+                </div>
+              </div>
+              <p>
+                As green bark dries into quills, weight shifts. The system tracks <strong>input vs. output weights</strong>, automatically calculating drying loss and flag discrepancies.
+              </p>
+              <div style="background: #F5F3FF; border: 1px solid #DDD6FE; padding: 10px; border-radius: var(--radius-sm); margin-top: 14px;">
+                <div style="font-size: 11px; color: #5B21B6; font-weight: 700;">STAGE EXTENSION RULE:</div>
+                <div style="font-family: var(--font-mono); font-size: 12px; margin-top: 3px;">
+                  GM-172-01-2026-FM-A-T <strong style="color: #5B21B6;">/P1/P2</strong>
+                </div>
+                <div style="font-size: 11px; color: var(--color-text-muted); margin-top: 4px;">
+                  The parent link remains permanently locked in the database.
+                </div>
+              </div>
+            </div>
+
+            <!-- Step 4 -->
+            <div class="info-card success-card">
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                <span class="step-badge" style="background: var(--color-success);">4</span>
+                <div>
+                  <h3 style="margin: 0;">Export Lot Consolidation</h3>
+                  <span style="font-size: 12px; color: var(--color-text-muted);">Multi-Batch Aggregation · EUDR Dossier</span>
+                </div>
+              </div>
+              <p>
+                The exporter selects qualified batches from vetted processors and merges them into a single container shipment:
+              </p>
+              <div style="background: var(--color-success-bg); border: 1px solid var(--color-success-border); padding: 10px; border-radius: var(--radius-sm); margin-top: 14px;">
+                <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                  <b>Export Lot: EX-001-2026-EXP</b>
+                  <span style="color: var(--color-success); font-weight: 600;">Merged (5 Plots)</span>
+                </div>
+                <div style="font-size: 12px; color: var(--color-text-body); margin-top: 6px;">
+                  Bundles all 5 individual farm GPS coordinates into a unified EU customs declaration file.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =========================================================
+           SLIDE 6: THE 5-STEP FLOW: STEP 5 (PUBLIC VERIFICATION)
+           ========================================================= -->
+      <section class="slide" data-slide="6">
+        <div class="slide-meta-badge">Operational Flow · Phase 3: Consumer & Auditor Proof</div>
+        <h2 class="slide-title">Step 5: 1-Second Public Verification Worldwide</h2>
+        <p class="slide-subtitle">Any European buyer, customs officer, or retail consumer points a smartphone camera at the QR code for instant, zero-friction verification.</p>
+
+        <div class="slide-content-area">
+          <div class="verdict-simulator-box">
+            <div>
+              <div class="verdict-interactive-badge authentic" id="sim-verdict-badge">
+                <div class="verdict-badge-icon" id="sim-verdict-icon">✓</div>
+                <div>
+                  <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700;">LIVE SYSTEM VERDICT</div>
+                  <div style="font-size: 18px; font-weight: 800;" id="sim-verdict-text">Authentic — Blockchain Verified</div>
+                </div>
+              </div>
+
+              <div style="font-size: 14px; line-height: 1.5; color: var(--color-text-body); margin-bottom: 14px;">
+                The public verify web portal requires <strong>no app download</strong> and <strong>no account</strong>. Content negotiation supports both mobile web and automated JSON API audit queries.
+              </div>
+
+              <div style="display: flex; gap: 8px;">
+                <button class="btn-ctrl active" onclick="setSimVerdict('AUTHENTIC')">Simulate Authentic</button>
+                <button class="btn-ctrl" onclick="setSimVerdict('PENDING')">Simulate Pending</button>
+                <button class="btn-ctrl" onclick="setSimVerdict('TAMPERED')">Simulate Tampered</button>
+              </div>
+            </div>
+
+            <!-- Verify Page Card Mockup -->
+            <div style="background: #FFFDF8; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 16px; box-shadow: var(--shadow-sm);">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                <span style="font-size: 18px;">🌿</span>
+                <b style="font-size: 14px; color: var(--color-text-title);">Cinnamon Trace Public Portal</b>
+              </div>
+              <div style="border-bottom: 1px solid var(--color-border); padding-bottom: 10px; margin-bottom: 10px;">
+                <div style="font-size: 11px; color: var(--color-text-muted);">BATCH IDENTIFIER</div>
+                <div style="font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--color-primary);">GM-172-01-2026-FM-A-T</div>
+              </div>
+              <div style="font-size: 12px; margin-bottom: 6px;">
+                <span style="color: var(--color-text-muted);">Farm of Origin:</span> <strong>Nilwala Estate, Galle</strong>
+              </div>
+              <div style="font-size: 12px; margin-bottom: 6px;">
+                <span style="color: var(--color-text-muted);">GPS Coordinates:</span> <code>6.0535° N, 80.2210° E</code>
+              </div>
+              <div style="font-size: 12px;">
+                <span style="color: var(--color-text-muted);">Bitcoin Timestamp:</span> <span style="color: var(--color-success); font-weight: 600;">Block #859,214 (Verified)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =========================================================
+           SLIDE 7: BLOCKCHAIN DEMYSTIFIED (THE 2-TIER NOTARY)
+           ========================================================= -->
+      <section class="slide" data-slide="7">
+        <div class="slide-meta-badge">Blockchain Architecture · Demystified for Business</div>
+        <h2 class="slide-title">The Blockchain Part: Demystified for Stakeholders</h2>
+        <p class="slide-subtitle">We deliver enterprise-grade blockchain immutability without the burden of cryptocurrency fees, wallets, or volatility.</p>
+
+        <div class="slide-content-area">
+          <div class="blockchain-arch-container">
+            <!-- Tier 1 -->
+            <div class="arch-pillar-box">
+              <div style="font-size: 11px; font-weight: 700; color: var(--color-primary); text-transform: uppercase;">TIER 1: INTERNAL CHAIN</div>
+              <h3 style="font-family: var(--font-display); font-size: 17px; margin: 6px 0 10px;">Cryptographic Domino Chain</h3>
+              <p style="font-size: 12.5px; color: var(--color-text-body); line-height: 1.5; flex: 1;">
+                Every event (harvest, handoff, processing) computes a unique <strong>SHA-256 digital fingerprint</strong> that commits to the previous event's hash.
+              </p>
+              <div style="background: var(--color-primary-light); padding: 8px; border-radius: 6px; font-size: 11px; font-weight: 600; color: var(--color-primary);">
+                🔒 Any retroactive database edit shatters the chain!
+              </div>
+            </div>
+
+            <div class="arch-connector">➔</div>
+
+            <!-- Merkle -->
+            <div class="arch-pillar-box highlight">
+              <div style="font-size: 11px; font-weight: 700; color: var(--color-accent); text-transform: uppercase;">DAILY CONDENSER</div>
+              <h3 style="font-family: var(--font-display); font-size: 17px; margin: 6px 0 10px;">Daily Merkle Tree</h3>
+              <p style="font-size: 12.5px; color: var(--color-text-body); line-height: 1.5; flex: 1;">
+                At midnight, thousands of daily event hashes are condensed into a single 32-byte <strong>Merkle Root fingerprint</strong>.
+              </p>
+              <div style="background: var(--color-accent-light); padding: 8px; border-radius: 6px; font-size: 11px; font-weight: 600; color: var(--color-warning);">
+                🌲 Infinite events condensed to 1 root
+              </div>
+            </div>
+
+            <div class="arch-connector">➔</div>
+
+            <!-- Tier 2 -->
+            <div class="arch-pillar-box">
+              <div style="font-size: 11px; font-weight: 700; color: var(--color-success); text-transform: uppercase;">TIER 2: PUBLIC WITNESS</div>
+              <h3 style="font-family: var(--font-display); font-size: 17px; margin: 6px 0 10px;">Bitcoin (OpenTimestamps)</h3>
+              <p style="font-size: 12.5px; color: var(--color-text-body); line-height: 1.5; flex: 1;">
+                The Merkle Root is submitted to public Bitcoin calendar servers. Bitcoin acts as an <strong>unhackable global notary</strong>.
+              </p>
+              <div style="background: var(--color-success-bg); padding: 8px; border-radius: 6px; font-size: 11px; font-weight: 600; color: var(--color-success);">
+                💰 $0 Crypto Gas Fees · Zero Wallets
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =========================================================
+           SLIDE 8: HOW INTEGRITY IS MATHEMATICALLY VERIFIED
+           ========================================================= -->
+      <section class="slide" data-slide="8">
+        <div class="slide-meta-badge">Cryptographic Integrity · Mathematical Verification</div>
+        <h2 class="slide-title">How We Prove Tamper-Evidence Mathematically</h2>
+        <p class="slide-subtitle">How any auditor, importer, or consumer can independently verify the record without having to trust our company.</p>
+
+        <div class="slide-content-area">
+          <div class="grid-3">
+            <div class="info-card success-card">
+              <div class="card-icon-bubble">🟢</div>
+              <h3 style="color: var(--color-success);">AUTHENTIC</h3>
+              <p>
+                The server recalculates the SHA-256 hash for every event in the batch's history. If all hash links match and Bitcoin anchoring is confirmed, the batch is certified authentic.
+              </p>
+              <div class="card-metric" style="color: var(--color-success);">
+                ✓ Unbroken Chain & Verified Bitcoin Block
+              </div>
+            </div>
+
+            <div class="info-card" style="border-color: var(--color-warning);">
+              <div class="card-icon-bubble" style="background: var(--color-warning-bg); color: var(--color-warning);">🟡</div>
+              <h3 style="color: var(--color-warning);">PENDING</h3>
+              <p>
+                Harvested within the last 24 hours. The local hash chain is completely valid and tamper-evident; it is simply awaiting the scheduled nightly Bitcoin block settlement.
+              </p>
+              <div class="card-metric" style="color: var(--color-warning);">
+                ◔ Queued for Nightly Bitcoin Block
+              </div>
+            </div>
+
+            <div class="info-card danger-card">
+              <div class="card-icon-bubble">🔴</div>
+              <h3 style="color: var(--color-danger);">TAMPERED</h3>
+              <p>
+                If any person modified a database row—changing a harvest weight from 50kg to 100kg or altering a farm GPS coordinate—the hash recomputation fails instantly.
+              </p>
+              <div class="card-metric" style="color: var(--color-danger);">
+                ✕ Cryptographic Signature Mismatch!
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =========================================================
+           SLIDE 9: VERIFIED TECHNICAL READINESS
+           ========================================================= -->
+      <section class="slide" data-slide="9">
+        <div class="slide-meta-badge">System Status · Proven in Testing</div>
+        <h2 class="slide-title">Architecture Validated: Tested End-to-End</h2>
+        <p class="slide-subtitle">This is working software, not speculative concept slides. All core cryptographic and anchoring loops are built and verified.</p>
+
+        <div class="slide-content-area">
+          <div class="grid-3">
+            <div class="info-card">
+              <div class="card-icon-bubble">⚡</div>
+              <h3>29+ Automated Tests</h3>
+              <p>Unit and integration test suites covering the SHA-256 hash chain, Merkle inclusion proofs, and verdict state engines are 100% passing.</p>
+              <div class="card-metric">100% Core Test Coverage</div>
+            </div>
+
+            <div class="info-card success-card">
+              <div class="card-icon-bubble">🌐</div>
+              <h3>Live Bitcoin Attestation</h3>
+              <p>Live end-to-end test batches were stamped to the public OpenTimestamps calendar, receiving authentic Bitcoin cryptographic proofs.</p>
+              <div class="card-metric">Live Network Validated</div>
+            </div>
+
+            <div class="info-card">
+              <div class="card-icon-bubble">📱</div>
+              <h3>Flutter Mobile Engine</h3>
+              <p>Mobile app features biometric authentication (fingerprint/Face ID), offline SQLite storage, and automatic sync reconciliation.</p>
+              <div class="card-metric">Android & iOS Ready</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =========================================================
+           SLIDE 10: STRATEGIC IMPACT & PILOT ROADMAP
+           ========================================================= -->
+      <section class="slide" data-slide="10">
+        <div class="slide-meta-badge">Strategic ROI · Next Steps</div>
+        <h2 class="slide-title">Commercial Return & Recommended Pilot</h2>
+        <p class="slide-subtitle">Transforming compliance costs into a commanding market advantage for Sri Lankan cinnamon exporters.</p>
+
+        <div class="slide-content-area">
+          <div class="grid-3" style="margin-bottom: 24px;">
+            <div class="info-card success-card">
+              <div class="card-icon-bubble">📈</div>
+              <h3>+15% to 25% Price Premium</h3>
+              <p>Exporting certified, tamper-proof Pure Ceylon Cinnamon with verifiable origin commands premium margins from European specialty roasters and gourmet brands.</p>
+            </div>
+
+            <div class="info-card">
+              <div class="card-icon-bubble">🛡️</div>
+              <h3>Zero EU Border Risk</h3>
+              <p>Pre-clears European customs under EUDR regulations with digital farm plot dossiers, avoiding costly container detention and penalties.</p>
+            </div>
+
+            <div class="info-card">
+              <div class="card-icon-bubble">💵</div>
+              <h3>$0 / Month Blockchain Cost</h3>
+              <p>OpenTimestamps public witness eliminates expensive crypto gas fees and token wallets, yielding near-zero marginal operational cost.</p>
+            </div>
+          </div>
+
+          <div style="background: var(--color-surface); border: 2px solid var(--color-primary); border-radius: var(--radius-md); padding: 18px 24px; display: flex; align-items: center; justify-content: space-between;">
+            <div>
+              <b style="font-size: 16px; color: var(--color-text-title);">Next Step: 60-Day Pilot Deployment</b>
+              <div style="font-size: 13px; color: var(--color-text-muted); margin-top: 2px;">
+                50 smallholders · 2 processing centers · 1 export container in the Galle/Matara belt.
+              </div>
+            </div>
+            <button class="btn-ctrl active" style="font-size: 14px; padding: 10px 20px;">
+              Launch Pilot Program 🚀
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Bottom Navigation & Controls -->
+  <footer class="deck-footer">
+    <div class="nav-arrow-group">
+      <button class="btn-nav" id="btn-prev" title="Previous Slide (Left Arrow)">◀</button>
+      <button class="btn-nav" id="btn-next" title="Next Slide (Right Arrow or Space)">▶</button>
+    </div>
+
+    <div class="slide-progress-dots" id="dots-container">
+      <!-- Generated via JS -->
+    </div>
+
+    <div class="keyboard-hint">
+      Keys: <kbd>◀</kbd> <kbd>▶</kbd> / <kbd>Space</kbd> · <kbd>S</kbd> Notes · <kbd>F</kbd> Fullscreen
+    </div>
+  </footer>
+
+  <!-- Slide-Out Speaker Notes Drawer -->
+  <aside class="speaker-notes-drawer" id="speaker-notes-drawer">
+    <div class="notes-header">
+      <div class="notes-title">
+        <span>📝</span> Speaker Script & Rehearsal Notes
+      </div>
+      <button class="btn-ctrl" id="btn-close-notes" style="padding: 3px 8px; font-size: 11px;">Close (S)</button>
+    </div>
+    <div class="notes-body" id="notes-content">
+      <!-- Populated dynamically per slide -->
+    </div>
+    <div class="notes-cue" id="notes-cue-box">
+      <!-- Delivery cue -->
+    </div>
+  </aside>
+
+  <!-- =============================================================
+       INTERACTIVE JAVASCRIPT ENGINE
+       ============================================================= -->
+  <script>
+    // Speaker notes content map
+    const SPEAKER_SCRIPTS = {
+      1: {
+        text: "Good morning, everyone. Today, I am proud to present Cinnamon Trace. Sri Lanka produces the finest cinnamon in the world, but our industry faces an unprecedented dual challenge: strict European import regulations and rampant market counterfeiting. Cinnamon Trace is our answer: a lightweight, mobile-first traceability system that connects farm plots directly to export containers with cryptographic mathematical proof.",
+        cue: "Vocal Cue: Confident, authoritative, respectful. Pause after 'cryptographic mathematical proof'."
+      },
+      2: {
+        text: "Why are we doing this right now? Two urgent market forces demand it. First, the European Union Deforestation Regulation (EUDR) mandates exact GPS plot coordinates for every agricultural import. Without verifiable digital proof, containers will be turned away at EU ports. Second, cheap Cassia is routinely blended and mislabeled as Ceylon Cinnamon, eroding our 25% premium. Cinnamon Trace turns this compliance burden into our strongest selling advantage.",
+        cue: "Vocal Cue: Serious and focused. Highlight that compliance is a market protection tool, not just red tape."
+      },
+      3: {
+        text: "We didn't build a complicated desktop system that sits in an office. We built an offline-first mobile platform designed specifically for rural Sri Lanka. It serves all four critical roles: Farmer, Collector, Processor, and Exporter. Farmers use biometric fingerprint login and can log batches deep in plantations with zero cellular reception.",
+        cue: "Vocal Cue: Reassure stakeholders that field usability was our number one engineering priority."
+      },
+      4: {
+        text: "Let's look at the farm gate. The farmer drops a single pin on a map to record GPS coordinates and acreage—satisfying EUDR requirements on day one. When logging a harvest, the app auto-generates a locked root batch number like GM-172-01-2026-FM-A-T. The farmer cannot alter it or mistype it. When the collector arrives, scanning the QR code confirms physical transfer in under two seconds.",
+        cue: "Vocal Cue: Walk them through the batch number anatomy to demonstrate technical rigor."
+      },
+      5: {
+        text: "At the processing facility, green bark dries and loses moisture. Cinnamon Trace tracks input weight versus output weight, automatically calculating yield and loss rates. When the exporter is ready to ship, they merge multiple farm batches into an Export Lot. The system automatically bundles all 5 or 10 underlying farm GPS coordinates into a ready-to-inspect EUDR declaration.",
+        cue: "Vocal Cue: Emphasize yield visibility—processors and exporters care deeply about shrinkage."
+      },
+      6: {
+        text: "Here is the ultimate customer payoff. When our cinnamon sits on a German gourmet grocery shelf, anyone can point their smartphone at the package QR code. In one second, with no app download required, a clean verification page loads. It displays the farm location, the harvest date, every hand-off, and an unmistakable green verdict: Authentic, Blockchain Verified.",
+        cue: "Vocal Cue: Demonstrate the interactive verdict buttons on this slide to show real-time responsiveness."
+      },
+      7: {
+        text: "Now let's demystify the blockchain part. Most people think blockchain means volatile cryptocurrency tokens, expensive transaction fees, and complex wallets. We used none of that. We engineered a two-tier model: Tier 1 is our local SHA-256 domino chain—any database alteration breaks the chain immediately. Tier 2 is Bitcoin via OpenTimestamps. Every midnight, all daily hashes are condensed into one Merkle root and stamped to Bitcoin. Zero crypto cost, zero wallets, 100% public proof.",
+        cue: "Vocal Cue: Clear, educational, demystifying. Contrast crypto speculation with mathematical notarization."
+      },
+      8: {
+        text: "How does the system actually verify authenticity? When a batch is queried, our server recomputes every SHA-256 hash from the farm plot to the export lot. If the hash chain matches and the Bitcoin timestamp is confirmed, it flags Authentic. If harvested today, it shows Pending until midnight. And if anyone touched a database row retroactively, the math fails and flags Tampered.",
+        cue: "Vocal Cue: Firm and conclusive. Emphasize that anyone in Europe can recompute the math independently."
+      },
+      9: {
+        text: "This is not speculative slide-ware. The core cryptographic engine, the Merkle tree builder, and the OpenTimestamps anchor client are already fully built with 29 passing automated test suites. In live testing against the Bitcoin network, test batches were successfully anchored to Bitcoin. The Flutter mobile app has biometric auth and offline sync. We are ready for field deployment.",
+        cue: "Vocal Cue: Proud, grounded in engineering facts and working software."
+      },
+      10: {
+        text: "To wrap up: Cinnamon Trace gives us guaranteed EUDR compliance, protects our 15% to 25% Pure Ceylon price premium, and incurs zero blockchain gas fees. We recommend a 60-day pilot across 50 smallholders and 2 processing centers in the Galle/Matara belt. Thank you, and I look forward to your questions.",
+        cue: "Vocal Cue: Energetic close, confident smile, opening the floor to discussion."
+      }
+    };
+
+    let currentSlide = 1;
+    const totalSlides = 10;
+    const slides = document.querySelectorAll('.slide');
+    const slideIndicator = document.getElementById('slide-indicator');
+    const dotsContainer = document.getElementById('dots-container');
+    const notesDrawer = document.getElementById('speaker-notes-drawer');
+    const notesContent = document.getElementById('notes-content');
+    const notesCueBox = document.getElementById('notes-cue-box');
+    const btnToggleNotes = document.getElementById('btn-toggle-notes');
+
+    // Build Progress Dots
+    for (let i = 1; i <= totalSlides; i++) {
+      const dot = document.createElement('div');
+      dot.className = `progress-dot ${i === 1 ? 'active' : ''}`;
+      dot.title = `Go to Slide ${i}`;
+      dot.addEventListener('click', () => goToSlide(i));
+      dotsContainer.appendChild(dot);
+    }
+
+    function updateNotes() {
+      const data = SPEAKER_SCRIPTS[currentSlide] || { text: "No notes for this slide.", cue: "" };
+      notesContent.innerHTML = data.text;
+      notesCueBox.innerHTML = `💡 ${data.cue}`;
+    }
+
+    function goToSlide(slideNum) {
+      if (slideNum < 1 || slideNum > totalSlides) return;
+      
+      slides.forEach(s => s.classList.remove('active'));
+      const target = document.querySelector(`.slide[data-slide="${slideNum}"]`);
+      if (target) target.classList.add('active');
+
+      currentSlide = slideNum;
+      slideIndicator.textContent = `${String(currentSlide).padStart(2, '0')} / ${String(totalSlides).padStart(2, '0')}`;
+
+      // Update dots
+      document.querySelectorAll('.progress-dot').forEach((d, idx) => {
+        d.classList.toggle('active', idx + 1 === currentSlide);
+      });
+
+      updateNotes();
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides) goToSlide(currentSlide + 1);
+    }
+
+    function prevSlide() {
+      if (currentSlide > 1) goToSlide(currentSlide - 1);
+    }
+
+    // Keyboard navigation
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        e.preventDefault();
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault();
+        prevSlide();
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        goToSlide(1);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        goToSlide(totalSlides);
+      } else if (e.key === 's' || e.key === 'S') {
+        toggleNotes();
+      } else if (e.key === 'f' || e.key === 'F') {
+        toggleFullscreen();
+      }
+    });
+
+    // Button controls
+    document.getElementById('btn-next').addEventListener('click', nextSlide);
+    document.getElementById('btn-prev').addEventListener('click', prevSlide);
+
+    function toggleNotes() {
+      notesDrawer.classList.toggle('open');
+      btnToggleNotes.classList.toggle('active', notesDrawer.classList.contains('open'));
+    }
+
+    btnToggleNotes.addEventListener('click', toggleNotes);
+    document.getElementById('btn-close-notes').addEventListener('click', toggleNotes);
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+    document.getElementById('btn-fullscreen').addEventListener('click', toggleFullscreen);
+
+    // Interactive simulator on Slide 6
+    function setSimVerdict(verdict) {
+      const badge = document.getElementById('sim-verdict-badge');
+      const icon = document.getElementById('sim-verdict-icon');
+      const text = document.getElementById('sim-verdict-text');
+      
+      badge.className = 'verdict-interactive-badge ' + verdict.toLowerCase();
+      if (verdict === 'AUTHENTIC') {
+        icon.textContent = '✓';
+        text.textContent = 'Authentic — Blockchain Verified';
+      } else if (verdict === 'PENDING') {
+        icon.textContent = '◔';
+        text.textContent = 'Verification Pending (Nightly Batch)';
+      } else if (verdict === 'TAMPERED') {
+        icon.textContent = '✕';
+        text.textContent = 'Tampering Detected — Cryptographic Mismatch';
+      }
+    }
+
+    // Initialize notes
+    updateNotes();
+  </script>
+</body>
+</html>

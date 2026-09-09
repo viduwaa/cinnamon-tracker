@@ -215,8 +215,15 @@ class BatchesRepository {
 
   /// Resolve a scanned batch number to a batch map. Offline-first: emit the
   /// cached drift row at once (offline scan shows info), then refresh server
-  /// truth (GET /batches/by-no/:batchNo) and cache it — so custody/status is
-  /// current before the user decides to collect. Throws when neither has it.
+  /// truth and cache it — so custody/status is current before the user
+  /// decides to collect.
+  ///
+  /// Two server surfaces back this, by design:
+  /// - `GET /batches/by-no/:no` (private) for batches the user has a custody
+  ///   relationship with — full detail, collectible.
+  /// - `GET /verify/:no` (public) for every other batch — a stranger's
+  ///   harvest, a processor's lot: the QR is a public trust surface, so a
+  ///   scan still shows origin + verdict instead of an error.
   Future<Map<String, dynamic>> resolveBatchByNo(String batchNo) async {
     final local = await (_db.select(_db.batches)
           ..where((t) => t.batchNo.equals(batchNo)))
@@ -226,7 +233,34 @@ class BatchesRepository {
       unawaited(_refreshByNo(batchNo));
       return batchToMap(local);
     }
-    return _refreshByNo(batchNo);
+    try {
+      return await _refreshByNo(batchNo);
+    } on ApiException catch (e) {
+      if (e.status != 404) rethrow;
+      // Not (yet) a custody party of this batch — fall back to the public
+      // verify surface so the scan still shows the batch's public truth.
+      final data = await api.get("/verify/$batchNo");
+      final m = Map<String, dynamic>.from(data as Map);
+      return _publicViewToBatchMap(m, batchNo);
+    }
+  }
+
+  /// Maps the public verify payload into the batch-map shape the scan flow
+  /// renders. Public data has no internal ids — `id` is left absent and the
+  /// scan UI keys off batch_no / status instead.
+  Map<String, dynamic> _publicViewToBatchMap(
+    Map<String, dynamic> v,
+    String batchNo,
+  ) {
+    final origin = v["origin"] as Map?;
+    return {
+      "batch_no": v["batch_no"]?.toString() ?? batchNo,
+      "status": "PUBLIC",
+      "weight_kg": null,
+      "origin": origin == null ? null : Map<String, dynamic>.from(origin),
+      "verification": v["verdict"]?.toString(),
+      "events": v["chain"] is List ? v["chain"] : const [],
+    };
   }
 
   Future<Map<String, dynamic>> _refreshByNo(String batchNo) async {

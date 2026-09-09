@@ -32,6 +32,27 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
   final _notesCtrl = TextEditingController();
 
   List<Map<String, dynamic>> _recipients = [];
+
+  /// The user's own OTHER roles that the current holding role may legally
+  /// transfer to (matrix-filtered) — the self-handover targets.
+  List<String> _selfRoleTargets() {
+    final auth = ref.read(authProvider);
+    if (auth is! SignedIn) return const [];
+    final batchAsync = ref.read(batchByIdProvider(widget.batchId));
+    final holderRole =
+        batchAsync.asData?.value["current_holder_role"]?.toString();
+    final allowed = _transferMatrix[holderRole] ?? const <String>[];
+    final mine = auth.user.roles
+        .where((r) => r != holderRole && allowed.contains(r))
+        .toList()
+      ..sort();
+    return mine;
+  }
+
+  String? get _meId {
+    final auth = ref.read(authProvider);
+    return auth is SignedIn ? auth.user.id : null;
+  }
   Map<String, dynamic>? _selected;
   String _kind = "SALE";
   String? _roleFilter;
@@ -257,6 +278,62 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
                 style: text.labelMedium?.copyWith(color: Ct.faded),
               ),
               const SizedBox(height: 16),
+              // Multi-role user: offer handing the batch to one of their own
+              // other roles (e.g. farmer hands to their own processor) —
+              // same IN_TRANSIT → accept flow as any transfer.
+              if (_selfRoleTargets().isNotEmpty) ...[
+                Text(
+                  "Your other roles",
+                  style: text.labelMedium?.copyWith(color: Ct.faded),
+                ),
+                const SizedBox(height: 8),
+                for (final entry in _selfRoleTargets())
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: CtCard(
+                      onTap: isLocked
+                          ? null
+                          : () => setState(() => _selected = {
+                                "id": _meId,
+                                "name": "Me",
+                                "role": entry,
+                                "mobile": "self handover",
+                              }),
+                      color: _selected?["role"] == entry && _selected?["id"] == _meId
+                          ? Ct.leafSoft
+                          : Ct.paper,
+                      child: Row(
+                        children: [
+                          const CircleAvatar(
+                            radius: 20,
+                            backgroundColor: Ct.quill,
+                            child:
+                                Icon(Icons.sync_alt, color: Ct.paper, size: 18),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("Hand over to my ${_roleLabel(entry)}",
+                                    style: text.titleMedium),
+                                Text(
+                                  "Switch this batch to your own ${_roleLabel(entry)} role",
+                                  style: text.bodyMedium
+                                      ?.copyWith(color: Ct.faded),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (_selected?["role"] == entry &&
+                              _selected?["id"] == _meId)
+                            const Icon(Icons.check_circle, color: Ct.leaf),
+                        ],
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 6),
+              ],
               if (_recipients.isNotEmpty) ...[
                 if (_searching)
                   const LinearProgressIndicator(

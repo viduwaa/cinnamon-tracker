@@ -256,7 +256,8 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> {
   }
 
   /// Routing by state (server truth — resolveBatchByNo refreshed it):
-  /// IN_TRANSIT to me → collect; held by me → detail; else → verify info.
+  /// IN_TRANSIT to me → collect · held by me → detail · otherwise (someone
+  /// else's batch, incl. public-view) → origin info.
   Future<void> _showResult(Map<String, dynamic> batch) {
     final auth = ref.read(authProvider);
     final myId = auth is SignedIn ? auth.user.id : null;
@@ -270,7 +271,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> {
     if (isIncoming) {
       return _collectSheet(batch);
     }
-    if (isMine) {
+    if (isMine && batch["id"] != null) {
       context.push("/batch/${batch["id"]}");
       return Future.value();
     }
@@ -339,15 +340,28 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> {
     );
   }
 
-  /// Scanned someone else's batch — public origin info + verify link.
+  /// Scanned someone else's batch — public origin info + verdict + verify link.
   Future<void> _infoSheet(Map<String, dynamic> batch) {
     final text = Theme.of(context).textTheme;
-    final holderRole = batch["current_holder_role"]?.toString();
     const verifyBase = String.fromEnvironment(
       "VERIFY_BASE_URL",
       defaultValue: "https://api-cinnamon.viduwa.dev/verify",
     );
     final verifyUrl = "$verifyBase/${batch["batch_no"]}";
+    final origin = batch["origin"] as Map?;
+    final verdict = batch["verification"]?.toString();
+    final (verdictIcon, verdictColor, verdictLabel) = switch (verdict) {
+      "AUTHENTIC" => (Icons.verified, Ct.leaf, "Blockchain-verified"),
+      "TAMPERED" => (Icons.gpp_bad, Ct.clay, "Tampering detected"),
+      _ => (Icons.schedule, Ct.quill, "Verification pending"),
+    };
+    final district = (origin?["district"] ?? origin?["area_code"])?.toString();
+    final location = origin?["location"] is Map
+        ? "Location ${(origin!["location"]["lat"] as num).toStringAsFixed(5)}, "
+            "${(origin["location"]["lng"] as num).toStringAsFixed(5)}"
+        : (district != null ? "District $district" : null);
+    final isPublicView = batch["status"]?.toString() == "PUBLIC";
+
     return showModalBottomSheet(
       context: context,
       backgroundColor: Ct.paper,
@@ -361,29 +375,44 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Row(
+                children: [
+                  Icon(verdictIcon, color: verdictColor),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      verdictLabel,
+                      style: text.titleLarge
+                          ?.copyWith(fontFamily: Ct.display, color: verdictColor),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
               Text(
                 batch["batch_no"].toString(),
-                style: text.titleLarge?.copyWith(
-                  fontFamily: Ct.display,
-                  color: Ct.cinnamon,
-                  letterSpacing: 0.6,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                "${batch["weight_kg"]} kg"
-                "${(holderRole != null && holderRole.isNotEmpty) ? " · with ${ctRoleLabel(holderRole)}" : ""}",
-                style: text.bodyMedium?.copyWith(color: Ct.faded),
+                style: text.titleMedium
+                    ?.copyWith(fontFamily: Ct.display, color: Ct.cinnamon),
               ),
               const SizedBox(height: 6),
               Text(
-                "Verified cinnamon batch — traceable farm to export.",
+                [
+                  origin?["farm_name"]?.toString(),
+                  location,
+                ].where((s) => s != null && s.isNotEmpty).join(" · "),
                 style: text.bodyMedium,
               ),
+              if (isPublicView) ...[
+                const SizedBox(height: 10),
+                Text(
+                  "This batch belongs to another party — you're seeing its public provenance.",
+                  style: text.bodySmall?.copyWith(color: Ct.faded),
+                ),
+              ],
               const SizedBox(height: 18),
               CtButton(
-                label: "Verify origin",
-                icon: Icons.verified_outlined,
+                label: "Open public verification",
+                icon: Icons.open_in_new,
                 onPressed: () {
                   Navigator.pop(sheetContext);
                   launchUrl(
