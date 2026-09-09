@@ -148,7 +148,19 @@ class BatchDetailScreen extends ConsumerWidget {
                                     style: text.titleMedium,
                                   ),
                                   Text(
-                                    "District ${origin["area_code"] ?? ""}",
+                                    // Human-readable origin line: district
+                                    // name, land size, address when present.
+                                    [
+                                      if ((origin["district"] ?? origin["area_code"])
+                                          ?.toString()
+                                          .isNotEmpty ==
+                                      true)
+                                        "District ${origin["district"] ?? origin["area_code"]}",
+                                      if (origin["size"]?.toString().isNotEmpty == true)
+                                        origin["size"].toString(),
+                                      if (origin["address"]?.toString().isNotEmpty == true)
+                                        origin["address"].toString(),
+                                    ].join(" · "),
                                     style: text.bodyMedium
                                         ?.copyWith(color: Ct.faded),
                                   ),

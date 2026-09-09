@@ -276,22 +276,34 @@ export class BatchesService {
     if (batch?.farm_id) {
       const farm = await this.db.queryOne<{
         name: string;
+        address_text: string | null;
         area_code: string;
+        size_value: string;
+        size_unit: string;
         lat: string | null;
         lng: string | null;
         location_public_level: string;
-      }>("SELECT name, area_code, lat, lng, location_public_level FROM farms WHERE id = $1", [
-        batch.farm_id,
-      ]);
+      }>(
+        "SELECT name, address_text, area_code, size_value, size_unit, lat, lng, location_public_level FROM farms WHERE id = $1",
+        [batch.farm_id],
+      );
       if (farm) {
+        // Human district name for display (codes are batch-number internals).
+        const district = await this.db.queryOne<{ name_en: string }>(
+          "SELECT name_en FROM districts WHERE area_code = $1",
+          [farm.area_code],
+        );
         origin = {
           farm_name: farm.name,
+          address: farm.address_text ?? null,
+          district: district?.name_en ?? farm.area_code,
           area_code: farm.area_code,
+          size: `${Number(farm.size_value)} ${farm.size_unit}`,
           // Respect the farmer's privacy choice on public surfaces.
           location:
             farm.location_public_level === "EXACT" && farm.lat !== null
               ? { lat: Number(farm.lat), lng: Number(farm.lng) }
-              : farm.area_code,
+              : null,
         };
       }
     }
