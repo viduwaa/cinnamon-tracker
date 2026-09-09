@@ -19,14 +19,13 @@ This document equips the presenter with:
 
 ---
 
-### Slide 2: The Dual Crisis (The "Why")
-- **Slide Title**: *The Urgent Challenge: EUDR Compliance & The Cassia Threat*
+### Slide 2: The Urgent Why — EUDR Compliance
+- **Slide Title**: *The Urgent Imperative: Mandatory EUDR Compliance*
 - **Speaker Script**:
-  > *"Why are we doing this right now? Two urgent market forces demand it.
-  > First, the European Union Deforestation Regulation—EUDR. Under this new law, every agricultural container entering Europe must carry the exact GPS coordinates of the farm plots where it was grown, proving zero deforestation. If an exporter cannot provide verifiable digital proof, the container is turned away at the port. Paper forms will no longer be accepted.
-  > Second, origin fraud. In supermarkets across Europe and North America, cheap, thick-bark Cassia is often blended and mislabeled as premium Ceylon Cinnamon. Because Cassia has high levels of toxic coumarin, consumer safety concerns are rising. 
-  > If we cannot prove our cinnamon is genuine Pure Ceylon, we forfeit our 25% price premium and risk losing market access entirely. Cinnamon Trace turns this regulatory hurdle into our biggest competitive weapon."*
-- **Delivery Cue**: Emphasize *"regulatory hurdle into our biggest competitive weapon"*. Stakeholders care about risk mitigation and margin preservation.
+  > *"Why are we building this right now? Because our industry faces an existential compliance deadline: the European Union Deforestation Regulation—EUDR.
+  > Under this new law, every agricultural shipment entering European ports must carry exact GPS plot coordinates proving zero deforestation after December 2020. European customs authorities have made it clear: handwritten logbooks and self-declarations are legally invalid. Non-compliant shipments face border impoundment, fines up to 4% of EU turnover, and total market exclusion.
+  > Cinnamon Trace was built specifically to solve this: capturing verified GPS coordinates at the farm gate and turning this regulatory hurdle into a certified export passport."*
+- **Delivery Cue**: Serious and authoritative. Emphasize that EUDR is a non-negotiable legal requirement that our platform pre-clears.
 
 ---
 
@@ -51,13 +50,13 @@ This document equips the presenter with:
 
 ---
 
-### Slide 5: Step 3 & 4 — Processing & Export Consolidation
-- **Slide Title**: *Step 3 & 4: Value-Addition Tracking & Export Dossier*
+### Slide 5: Step 3 & 4 — Custody Transfer & The Processing Path
+- **Slide Title**: *Step 3 & 4: Custody Transfer & The Processing Path*
 - **Speaker Script**:
-  > *"Next, the cinnamon reaches the processing facility.
-  > In Step 3, processors record peeling, quilling, and grading. As the bark dries, moisture evaporates and weight changes. Cinnamon Trace tracks input weight versus output weight, automatically calculating yield and drying losses. The batch receives a guided stage suffix—like `/P1` or `/P2`—maintaining an unbroken mathematical link to the original farm plot.
-  > In Step 4, when the exporter prepares an overseas shipping container, they select multiple processed batches and merge them into an Export Lot. The system automatically gathers all individual farm plot GPS pins into a single, one-click EUDR compliance dossier ready for European customs inspectors."*
-- **Delivery Cue**: Highlight the yield tracking. Processors love loss visibility because shrinkage is money.
+  > *"Let's look at what happens when the cinnamon leaves the farm.
+  > In our live M1 app today, the custody transfer workflow is fully functional. The farmer initiates a transfer—either as a sale or a handoff—to a registered collector or processor. The batch enters an 'In Transit' state. The recipient sees it in their incoming Inbox, inspects the physical weight, and clicks 'Accept'. The batch transitions to 'Received', and an immutable event is stamped into our cryptographic ledger.
+  > Looking ahead to Phase 2 of our roadmap, our backend database is already architected for processing stage tags—such as peeling, quilling, and drying yield loss—as well as multi-batch export lot consolidation for shipping containers. We deliver working custody transfer today with a clean, pre-architected expansion path tomorrow."*
+- **Delivery Cue**: Transparent and confident. Clearly distinguish the live working custody engine in M1 from the pre-architected Phase 2 processing screens.
 
 ---
 
@@ -166,3 +165,20 @@ This document equips the presenter with:
 - **Defense**:
   > *"No. Cinnamon Trace enforces strict upward-only traceability access control. 
   > A processor or exporter can look backward up the ancestry tree to see the farm of origin and intermediate hand-offs. But a farmer or competitor cannot see downstream where the batch went, who bought it, or at what price. Commercial confidentiality between trading partners is strictly safeguarded."*
+
+---
+
+### Q7: "What parts of this flow are working live today versus planned for Phase 2?"
+- **Defense**:
+  > *"We believe in radical engineering honesty:
+  > What is 100% working live today (our M1 MVP):
+  > 1. Farmer Registration & Farm Plot GPS mapping (EUDR coordinates).
+  > 2. Harvest Batch Creation (auto-generating locked batch numbers like GM-172-01-2026-FM-A-T and offline QR codes).
+  > 3. Custody Transfer & Reception (initiating SALE/HANDOFF, recipient Inbox notification, physical verification, and click-to-accept state change to RECEIVED).
+  > 4. The Cryptographic SHA-256 Ledger and OpenTimestamps Bitcoin Anchoring.
+  > 5. The Public Verification Web Portal (/verify/{batchNo}) rendering real-time Authentic/Pending/Tampered verdicts.
+  > 
+  > What is planned for Phase 2 (our M2 Roadmap):
+  > 1. Dedicated processing UI screens for peeling, quilling, and moisture loss tracking.
+  > 2. The Exporter container lot builder for merging multiple batches into master export shipments.
+  > Note that our PostgreSQL database schema (the parents array, MERGED_IN event type, and stage_suffix column) is already built to support Phase 2 with zero changes to existing data."*

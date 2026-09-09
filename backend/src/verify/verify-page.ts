@@ -76,6 +76,10 @@ export function renderVerifyPage(v: VerifyView): string {
   const originLocation = origin?.location
     ? `${origin.location.lat.toFixed(5)}, ${origin.location.lng.toFixed(5)}`
     : `District ${esc(origin?.district ?? origin?.area_code ?? "—")}`;
+  const originMap =
+    origin?.location
+      ? `<iframe class="origin-map" src="https://maps.google.com/maps?q=${origin.location.lat},${origin.location.lng}&z=14&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Farm location map"></iframe>`
+      : "";
 
   const anchorBlocks = v.anchors.length
     ? v.anchors
@@ -133,7 +137,8 @@ export function renderVerifyPage(v: VerifyView): string {
   .row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0;
          font-size: 14px; }
   .row span:first-child { color: #7A6A58; }
-  code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; }
+  .card code { font-family: ui-monospace, monospace; font-size: 12px; }
+  .origin-map { width: 100%; height: 200px; border: 0; border-radius: 10px; margin-top: 10px; }
   .muted { color: #7A6A58; font-size: 13.5px; }
   .ok { color: #166534; font-weight: 600; }
   .anchor-head { font-size: 13.5px; margin-bottom: 6px; }
@@ -172,6 +177,7 @@ export function renderVerifyPage(v: VerifyView): string {
            <div class="row"><span>District</span>${esc(origin.district ?? origin.area_code ?? "—")}</div>
            ${origin.size ? `<div class="row"><span>Land size</span>${esc(origin.size)}</div>` : ""}
            <div class="row"><span>Location</span>${originLocation}</div>
+           ${originMap}
          </div>`
       : ""
   }

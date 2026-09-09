@@ -52,6 +52,7 @@ class _FarmWizardScreenState extends ConsumerState<FarmWizardScreen> {
   final _addrCtrl = TextEditingController();
   double? _lat;
   double? _lng;
+  String _publicLevel = "EXACT";
   String? _areaCode;
   String _unit = "ACRE";
   bool _saving = false;
@@ -95,6 +96,10 @@ class _FarmWizardScreenState extends ConsumerState<FarmWizardScreen> {
             lng: _lng,
             addressText:
                 _addrCtrl.text.trim().isEmpty ? null : _addrCtrl.text.trim(),
+            // Only meaningful when the farmer pinned a location on the map;
+            // DISTRICT otherwise (server gates coordinates on this).
+            locationPublicLevel:
+                _lat != null && _lng != null ? _publicLevel : "DISTRICT",
           );
       // Kick the drain so an online device syncs immediately.
       unawaited(ref.read(syncWorkerProvider).drain());
@@ -222,6 +227,44 @@ class _FarmWizardScreenState extends ConsumerState<FarmWizardScreen> {
                       ),
                     ],
                   ),
+                ),
+              ],
+              // Privacy of the pinned location — asked only when a pin
+              // exists; DISTRICT farms have nothing to expose.
+              if (_lat != null && _lng != null) ...[
+                const SizedBox(height: 18),
+                Text("Who sees the exact farm pin?", style: text.labelMedium),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    for (final (value, label, icon) in const [
+                      ("EXACT", "Everyone", Icons.public),
+                      ("HIDDEN", "Only me", Icons.lock_outline),
+                    ])
+                      Padding(
+                        padding: const EdgeInsets.only(right: 10),
+                        child: ChoiceChip(
+                          label: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(icon, size: 16, color: Ct.cinnamon),
+                              const SizedBox(width: 6),
+                              Text(label),
+                            ],
+                          ),
+                          selected: _publicLevel == value,
+                          onSelected: (_) =>
+                              setState(() => _publicLevel = value),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _publicLevel == "EXACT"
+                      ? "Buyers and verifiers see the exact pin on the map — strongest authenticity proof."
+                      : "The pin stays private; verification shows the district only.",
+                  style: text.bodySmall?.copyWith(color: Ct.faded),
                 ),
               ],
               const SizedBox(height: 18),

@@ -18,44 +18,40 @@ By marrying **instant offline mobile data capture** with a **zero-cost Bitcoin-a
                TRADITIONAL SUPPLY CHAIN                         CINNAMON TRACE PLATFORM
    ┌──────────────────────────────────────────────┐       ┌──────────────────────────────────────────────┐
    │ • Paper-based logbooks (easily forged)       │       │ • Digital GPS Plot Mapping (EUDR-ready)      │
-   │ • Opaque middlemen blending Cassia adulterant│  ───► │ • Immutable Root Batch Numbers & Custody QR  │
-   │ • Risk of EU export bans & border rejections │       │ • Zero-Cost Bitcoin Public Proof of Origin   │
-   │ • Farmers trapped in commodity pricing       │       │ • Premium Price Uplift for Certified Ceylon  │
+   │ • No geospatial coordinates or plot proof    │  ───► │ • Immutable Root Batch Numbers & Custody QR  │
+   │ • High risk of EU border detention & fines   │       │ • Zero-Cost Bitcoin Public Proof of Origin   │
+   │ • Farmers trapped in informal cash sales     │       │ • Guaranteed European Market Access          │
    └──────────────────────────────────────────────┘       └──────────────────────────────────────────────┘
 ```
 
-### The 3 Core Drivers:
+### The 2 Core Drivers:
 
-1. **The EUDR Compliance Mandate (The "Burn-the-Ships" Reality)**:
-   - The European Union Deforestation Regulation (EUDR) legally mandates that every shipment of agricultural commodities entering the EU must provide **exact GPS polygon/point coordinates** of the farm plots of origin and irrefutable proof that the crop was not produced on deforested land after 2020.
-   - Paper records and self-signed certificates are no longer accepted at EU customs. Without verifiable digital coordinates tied directly to export lots, Sri Lankan exporters face container rejections, customs impoundment, and severe fines.
-2. **Defending Pure Ceylon Cinnamon Against Cassia Adulteration**:
-   - Sri Lanka holds a natural monopoly on **Pure Ceylon Cinnamon (*Cinnamomum verum*)**, prized for its delicate sweet flavor and ultra-low coumarin levels (safe for regular consumption).
-   - In global markets, cheap *Cassia* (high in toxic coumarin) is routinely blended or passed off as Ceylon Cinnamon, eroding national brand value and depressing prices.
-   - Cinnamon Trace delivers **cryptographic proof of authentic origin**, safeguarding the 20-30% price premium Ceylon Cinnamon commands.
-3. **Smallholder Empowerment & Direct Sourcing**:
-   - 85%+ of Sri Lanka's cinnamon is cultivated by smallholder farmers who often lack financial and digital visibility.
+1. **The Mandatory EUDR Compliance Imperative**:
+   - The European Union Deforestation Regulation (EUDR) legally mandates that every shipment of agricultural commodities entering the EU must provide **exact GPS polygon/point coordinates** of the farm plots of origin and irrefutable proof that the crop was not produced on deforested land after December 31, 2020.
+   - Paper records, self-declarations, and generalized regional certificates are legally invalid at EU customs. Without verifiable digital coordinates tied directly to export lots, Sri Lankan exporters face immediate container rejections, customs impoundment, and severe fines up to 4% of annual EU turnover.
+   - Cinnamon Trace captures farm plot coordinates on mobile devices at the farm gate, immutably links them to each harvest batch, and outputs a one-click digital compliance pack for European customs inspectors.
+2. **Smallholder Empowerment & Direct Sourcing**:
+   - 85%+ of Sri Lanka's cinnamon is cultivated by smallholder farmers who lack formal digital visibility.
    - Cinnamon Trace gives every farmer a verified digital profile and permanent ownership record of their harvest batches, unlocking fair pricing and direct exporter procurement programs.
 
 ---
 
-## 3. The 5-Step Operational Flow (Simple & Pragmatic)
+## 3. The Operational Flow (Live in App vs. Roadmap)
 
 The platform is designed to operate seamlessly in rural environments with intermittent connectivity:
 
 ```mermaid
 flowchart TD
-    S1["<b>Step 1: Farm Origin & Harvest</b><br/>Farmer drops GPS pin on map.<br/>Logs harvest weight. System generates locked Root ID: <code>GM-172-01-2026-FM-A-T</code>."] --> S2["<b>Step 2: Custody Hand-off</b><br/>Handed to Collector or Processor via QR scan.<br/>Linage remains linked; downstream stays private."]
-    S2 --> S3["<b>Step 3: Processing & Quality Grading</b><br/>Peeling, quilling, and drying recorded.<br/>Input vs. output weight tracked. System tags <code>/P1</code> / <code>/P2</code>."]
-    S3 --> S4["<b>Step 4: Export Lot Consolidation</b><br/>Exporter merges batches into container lot.<br/>Generates multi-farm GPS dossier for EUDR inspection."]
-    S4 --> S5["<b>Step 5: 1-Second Public Verification</b><br/>European buyer or inspector scans package QR.<br/>Instantly views: 🟢 AUTHENTIC / Full Origin Map / Bitcoin Anchor."]
+    S1["<b>Step 1: Farm Origin & Harvest (Live M1)</b><br/>Farmer drops GPS pin on map.<br/>Logs harvest weight. System generates locked Root ID: <code>GM-172-01-2026-FM-A-T</code>."] --> S2["<b>Step 2: Custody Hand-off (Live M1)</b><br/>Handed to Collector/Processor via QR scan.<br/>Batch transitions to IN_TRANSIT."]
+    S2 --> S3["<b>Step 3: Inbox Acceptance (Live M1)</b><br/>Recipient verifies weight & accepts.<br/>Batch becomes RECEIVED; logged to hash chain."]
+    S3 --> S4["<b>Step 4: Processing & Export Merge (M2 Roadmap)</b><br/>Peeling/drying yield loss tracking.<br/>Consolidation of batches into export lots (EX-001-2026-EXP)."]
+    S4 --> S5["<b>Step 5: 1-Second Public Verification (Live M1)</b><br/>European buyer or inspector scans package QR.<br/>Instantly views: 🟢 AUTHENTIC / Full Origin Map / Bitcoin Anchor."]
 ```
 
-- **Step 1 (Farmer / Root)**: Farmer logs in via phone number / biometric authentication. Drops a single map pin on their plot. Logs harvest weight. System auto-generates a locked, collision-free batch ID (e.g. `GM-172-01-2026-FM-A-T`) and offline QR code.
-- **Step 2 (Collector / Handoff)**: Physical transfer is confirmed via recipient QR scan. Lineage is locked; farmers can trace their batch history, while commercial downstream channels remain protected.
-- **Step 3 (Processor / Value Add)**: Processors log peeling, grading, and moisture readings. Yield and loss rates are automatically computed.
-- **Step 4 (Exporter / Lot Merge)**: Multiple farm batches are consolidated into an export lot (e.g. `EX-001-2026-EXP-MERGED(x5)`). The system compiles all underlying farm plot GPS coordinates into a one-click digital compliance pack.
-- **Step 5 (Consumer & Auditor Verification)**: Anyone scanning the QR code on a jar or bulk container is taken to a public web page showing the full timeline, plot locations, and cryptographic status.
+- **Step 1 — Farm Origin & Harvest (Live in M1 MVP)**: Farmer logs in via phone number / biometric authentication. Drops a single map pin on their plot to record GPS coordinates and acreage. Logs harvest weight. System auto-generates a locked, collision-free batch ID (e.g. `GM-172-01-2026-FM-A-T`) and offline QR code.
+- **Step 2 & 3 — Custody Transfer & Inbox Acceptance (Live in M1 MVP)**: Physical transfer is initiated via recipient phone number or QR scan (`SALE` or `HANDOFF`). Batch enters `IN_TRANSIT`. The recipient receives an Inbox notification, verifies the incoming weight, and clicks `Accept` (status becomes `RECEIVED`). An immutable event is logged on the hash chain. Upward farm ancestry is visible; downstream sales stay private.
+- **Step 4 — Processing & Export Lot Merging (Phase 2 / M2 Roadmap)**: Future screens for peeling, quilling, and drying yield tracking with automated loss calculations, plus multi-batch container consolidation (`EX-001-2026-EXP`). Pre-architected in the current PostgreSQL database schema (`parents`, `MERGED_IN`, `stage_suffix`).
+- **Step 5 — 1-Second Public Verification (Live in M1 MVP)**: Anyone scanning the package QR code views a public web page showing the full timeline, plot locations, and cryptographic status in 1 second—no app download required.
 
 ---
 
