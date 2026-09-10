@@ -19,6 +19,7 @@ import { LotsModule } from "./lots/lots.module";
 import { HealthController } from "./health.controller";
 import { TransfersModule } from "./transfers/transfers.module";
 import { VerifyModule } from "./verify/verify.module";
+import { AdminModule } from "./admin/admin.module";
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { VerifyModule } from "./verify/verify.module";
     TransfersModule,
     VerifyModule,
     AnchorModule,
+    AdminModule,
   ],
   controllers: [HealthController],
   providers: [

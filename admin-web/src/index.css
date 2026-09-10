@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+/* Cinnamon Harvest Admin — token block exported from DESIGN.md
+   (`designmd export --format css-tailwind`). Single source of truth. */
+@theme {
+  --color-primary: #8b4a2b;
+  --color-secondary: #4a2c17;
+  --color-tertiary: #d98e32;
+  --color-neutral: #faf3e7;
+  --color-paper: #fffdf8;
+  --color-ink: #2b1d12;
+  --color-faded: #7a6a58;
+  --color-line: #e8dcc8;
+  --color-leaf: #4c7a34;
+  --color-leaf-dark: #3d6329;
+  --color-leaf-soft: #e7efdd;
+  --color-clay: #b4452f;
+  --color-clay-dark: #a23522;
+  --color-clay-soft: #f6e0da;
+  --color-quill: #d98e32;
+  --color-quill-soft: #f7e8d2;
+  --color-bark: #4a2c17;
+  --font-display: "Baloo 2", ui-rounded, sans-serif;
+  --font-body: "Noto Sans", system-ui, sans-serif;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--color-neutral);
+  color: var(--color-ink);
+  margin: 0;
+}
+
+h1,
+h2,
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* Dense, readable data tables — the console's core surface. */
+table.ct th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-faded);
+  background: var(--color-neutral);
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-line);
+  white-space: nowrap;
+}
+table.ct td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-line);
+  vertical-align: top;
+  font-size: 0.875rem;
+}
+table.ct tbody tr:hover {
+  background: color-mix(in srgb, var(--color-quill-soft) 40%, transparent);
+}
+
+input.ct,
+select.ct {
+  background: var(--color-paper);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: 0.875rem;
+  color: var(--color-ink);
+}
+input.ct:focus,
+select.ct:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}

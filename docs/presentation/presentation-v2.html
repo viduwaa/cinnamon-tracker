@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cinnamon Trace — Traceability Deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ==================================================================
+   CINNAMON TRACE — pointwise traceability deck (v2)
+   surface: Decide/Learn · 1920×1080 stage · warm spice palette
+   ================================================================== */
+:root{
+  --paper:#FAF3E7; --cream:#FFFDF8; --line:#E8DCC8; --line-soft:#F0E6D2;
+  --bark:#8B4A2B; --bark-deep:#5C2E17; --quill:#D98E32; --quill-soft:#F7E8D2;
+  --leaf:#4C7A34;
+  --ink:#2B1D12; --body:#3E2E1F; --muted:#7C6B57;
+  --ok:#166534; --ok-bg:#E9F5EC; --warn:#92400E; --warn-bg:#FDF3DC; --bad:#991B1B; --bad-bg:#FBE9E7;
+  --display:'Fraunces',serif; --sans:'Inter',system-ui,sans-serif; --mono:'JetBrains Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:#160F0A;font-family:var(--sans);overflow:hidden;user-select:none}
+
+header{position:fixed;top:0;left:0;right:0;height:58px;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:0 26px;background:rgba(22,15,10,.92);border-bottom:1px solid rgba(232,220,200,.14)}
+.brand{display:flex;align-items:center;gap:12px;color:#FAF3E7}
+.brand b{font-family:var(--display);font-weight:600;font-size:17px}
+.brand span{display:block;font-size:11px;color:#CBB9A5;text-transform:uppercase;letter-spacing:.14em}
+.hctrl{display:flex;align-items:center;gap:12px}
+.hbtn{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);color:#FAF3E7;padding:7px 14px;border-radius:9px;font:500 13px var(--sans);cursor:pointer;transition:.18s}
+.hbtn:hover{background:rgba(255,255,255,.16)}
+#counter{color:#CBB9A5;font:600 13px var(--mono);min-width:64px;text-align:center}
+footer{position:fixed;bottom:0;left:0;right:0;height:58px;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:0 26px;background:rgba(22,15,10,.92);border-top:1px solid rgba(232,220,200,.14)}
+.fnav{display:flex;gap:8px}
+.fbtn{width:40px;height:40px;border-radius:11px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.07);color:#FAF3E7;font-size:15px;cursor:pointer;transition:.18s}
+.fbtn:hover{background:rgba(255,255,255,.16)}
+#dots{display:flex;gap:8px}
+#dots i{width:9px;height:9px;border-radius:50%;background:rgba(250,243,231,.22);cursor:pointer;transition:.2s}
+#dots i.on{background:var(--quill);transform:scale(1.25)}
+.khint{color:#8A7A66;font-size:12px}
+
+#stageWrap{position:fixed;top:58px;bottom:58px;left:0;right:0;overflow:hidden}
+#stage{
+  position:absolute;top:50%;left:50%;width:1920px;height:1080px;
+  transform:translate(-50%,-50%) scale(var(--s,1));transform-origin:center center;
+  background:var(--paper);border-radius:18px;overflow:hidden;
+  box-shadow:0 30px 90px rgba(0,0,0,.55);
+}
+#stage::before{
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background:
+    repeating-linear-gradient(90deg,rgba(139,74,43,.028) 0 2px,transparent 2px 96px),
+    repeating-linear-gradient(0deg,rgba(139,74,43,.02) 0 1px,transparent 1px 120px),
+    radial-gradient(1200px 800px at 85% -10%,rgba(217,142,50,.09),transparent 60%),
+    radial-gradient(900px 700px at -5% 110%,rgba(76,122,52,.07),transparent 55%);
+}
+.slide{position:absolute;inset:0;padding:88px 96px 96px;display:none;flex-direction:column}
+.slide.active{display:flex;animation:in .38s ease-out}
+@keyframes in{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+.kicker{display:inline-flex;align-items:center;gap:10px;align-self:flex-start;font:700 13px var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--bark);padding:8px 16px;border:1px solid var(--line);border-radius:999px;background:var(--cream)}
+.kicker .dotmark{width:8px;height:8px;border-radius:50%;background:var(--quill)}
+h1.t{font:900 64px/1.06 var(--display);color:var(--ink);letter-spacing:-.015em;margin:20px 0 12px}
+h1.t em{font-style:italic;font-weight:600;color:var(--bark)}
+p.sub{font:400 27px/1.42 var(--sans);color:var(--body);max-width:1450px}
+.footer-strip{margin-top:auto;display:flex;align-items:center;gap:14px;color:var(--muted);font:500 16px var(--sans)}
+.footer-strip .rule{flex:1;height:1px;background:var(--line)}
+.pill{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:7px 16px;font:700 15px var(--sans)}
+.pill.ok{background:var(--ok-bg);color:var(--ok)}
+.pill.bark{background:var(--quill-soft);color:var(--bark)}
+code.mono{font-family:var(--mono)}
+
+/* pointwise rows — the core of this deck */
+.pts{display:flex;flex-direction:column;gap:16px;margin-top:38px}
+.pt{
+  display:grid;grid-template-columns:64px 1fr;gap:24px;align-items:start;
+  background:var(--cream);border:1px solid var(--line);border-radius:18px;padding:24px 30px;
+}
+.pt .n{
+  width:52px;height:52px;border-radius:15px;background:var(--quill-soft);color:var(--bark);
+  display:grid;place-items:center;font:700 23px var(--mono);
+}
+.pt .t{font:700 24px/1.3 var(--sans);color:var(--ink);margin-bottom:5px}
+.pt .d{font:400 20px/1.45 var(--sans);color:var(--body)}
+.pt .d b{color:var(--ink)}
+.pt .d code{font:600 18px var(--mono);background:var(--quill-soft);color:var(--bark);border-radius:7px;padding:2px 9px}
+.pt.leaf .n{background:#E9F5EC;color:var(--leaf)}
+.pt.dark{background:var(--bark-deep);border:0;color:#F6EBDD}
+.pt.dark .t{color:#fff}
+.pt.dark .d{color:#E5D5C0}
+.pt.dark .n{background:rgba(217,142,50,.2);color:var(--quill)}
+
+/* two-col point layout */
+.pts2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:38px}
+.pts2 .pt{grid-template-columns:52px 1fr;padding:22px 26px;gap:20px}
+.pts2 .pt .n{width:46px;height:46px;font-size:20px;border-radius:13px}
+
+/* hero */
+.hero{display:grid;grid-template-columns:1.3fr 1fr;gap:70px;flex:1;align-items:center}
+.hero h1{font:900 96px/1.02 var(--display);color:var(--ink);letter-spacing:-.02em;margin:26px 0 20px}
+.hero h1 em{font-style:italic;font-weight:600;color:var(--bark)}
+.hero>.hero-copy p{font:400 27px/1.45 var(--sans);color:var(--body);max-width:780px}
+.tagline{margin-top:30px;display:inline-flex;align-items:center;gap:14px;background:var(--bark-deep);color:#F6EBDD;border-radius:18px;padding:20px 30px;font:600 25px var(--display);font-style:italic}
+.tagline .dotmark{width:10px;height:10px;border-radius:50%;background:var(--quill);flex:none}
+.hero-stack{display:flex;flex-direction:column;gap:18px}
+.mini{background:var(--cream);border:1px solid var(--line);border-radius:16px;padding:20px 24px}
+.mini b{font:700 19px var(--sans);color:var(--ink);display:block;margin-bottom:4px}
+.mini span{font:400 17px/1.45 var(--sans);color:var(--body)}
+
+/* route */
+.route{flex:1;display:flex;flex-direction:column;justify-content:center;margin-top:6px}
+.rnode{background:var(--cream);border:1px solid var(--line);border-radius:18px;padding:20px 22px;box-shadow:0 10px 26px rgba(92,46,23,.08)}
+.rnode .rn-h{display:flex;align-items:center;gap:11px;margin-bottom:9px}
+.rnode .n{width:32px;height:32px;border-radius:10px;background:var(--bark);color:#fff;display:grid;place-items:center;font:700 16px var(--mono);flex:none}
+.rnode b{font-size:19.5px;color:var(--ink)}
+.rnode p{font-size:16.5px;color:var(--body);line-height:1.42;margin-top:2px}
+.rnode ul{list-style:none;margin-top:8px}
+.rnode li{font:400 15.5px/1.4 var(--sans);color:var(--body);padding:2px 0 2px 18px;position:relative}
+.rnode li::before{content:"";position:absolute;left:2px;top:11px;width:7px;height:7px;border-radius:50%;background:var(--quill)}
+#routeSvg{display:block;width:100%;height:auto}
+
+/* offline phone */
+.offl{display:grid;grid-template-columns:.85fr 1.15fr;gap:72px;flex:1;align-items:center}
+.phone{width:400px;height:810px;margin:0 auto;background:#241812;border-radius:48px;padding:16px;box-shadow:0 30px 70px rgba(0,0,0,.35)}
+.phone .scr{background:var(--paper);border-radius:36px;height:100%;overflow:hidden;display:flex;flex-direction:column}
+.phone .bar{background:var(--bark);color:#F6EBDD;padding:15px 18px 13px;display:flex;justify-content:space-between;align-items:center}
+.phone .bar b{font-family:var(--display);font-size:17px}
+.phone .bodyc{padding:16px;display:flex;flex-direction:column;gap:12px}
+.pcard{background:var(--cream);border:1px solid var(--line);border-radius:14px;padding:13px 15px;font-size:15px}
+.pcard .h{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
+.pcard .no{font:700 14px var(--mono);color:var(--bark)}
+.pcard .st{font:700 11px var(--sans);letter-spacing:.08em;text-transform:uppercase}
+.queued{display:flex;align-items:center;gap:10px;background:var(--warn-bg);border:1px dashed #E2B95D;border-radius:12px;padding:12px 14px;font-size:15px;color:var(--warn)}
+.queued b{font-weight:700}
+.offl .step{display:flex;gap:20px;padding:21px 0;border-bottom:1px solid var(--line)}
+.offl .step:last-child{border-bottom:0}
+.offl .num{width:48px;height:48px;border-radius:15px;background:var(--quill-soft);color:var(--bark);display:grid;place-items:center;font:700 20px var(--mono);flex:none}
+.offl .step b{font-size:22px;color:var(--ink);display:block;margin-bottom:5px}
+.offl .step span{font-size:19px;color:var(--body);line-height:1.45}
+
+/* numbering */
+.anat{margin-top:42px}
+.segs{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.seg{border-radius:14px;padding:16px 18px 12px;text-align:center}
+.seg .v{font:700 32px var(--mono);letter-spacing:.02em}
+.seg .l{font:600 15px var(--sans);text-transform:uppercase;letter-spacing:.09em;margin-top:6px}
+.slash{font:700 40px var(--mono);color:var(--muted);align-self:center}
+.merge{display:grid;grid-template-columns:1fr 90px 1fr;gap:0;align-items:center;margin-top:46px}
+.mcard{background:var(--cream);border:1px solid var(--line);border-radius:16px;padding:18px 22px;font:600 19px var(--mono);color:var(--bark)}
+.mcard small{display:block;font:500 17px/1.4 var(--sans);color:var(--muted);margin-top:6px}
+.mid{display:flex;flex-direction:column;align-items:center;gap:2px}
+
+/* blockchain chain */
+.bc{display:grid;grid-template-columns:1.05fr .95fr;gap:64px;flex:1;align-items:stretch;margin-top:6px}
+.chain{display:flex;flex-direction:column;justify-content:center}
+.receipt{background:var(--cream);border:1px solid var(--line);border-radius:14px;padding:14px 20px;display:flex;align-items:center;gap:18px;position:relative;z-index:1}
+.receipt .ev{width:200px;flex:none}
+.receipt .ev .t{font:700 18px var(--sans);color:var(--ink)}
+.receipt .ev .s{font:500 15px var(--sans);color:var(--muted)}
+.receipt .hash{font:600 16px var(--mono);color:var(--bark);background:var(--quill-soft);border-radius:8px;padding:7px 13px}
+.receipt .ph{font:500 14px var(--mono);color:var(--muted);margin-left:auto}
+.staple{width:3px;height:30px;background:var(--bark);margin-left:80px;position:relative;z-index:0;border-radius:2px}
+.staple::after{content:"parent hash ↓";position:absolute;left:15px;top:6px;font:700 13.5px var(--sans);color:var(--bark);white-space:nowrap}
+.receipt.broken{border:1.5px dashed var(--bad);background:var(--bad-bg)}
+.receipt.broken .hash{background:#fff;color:var(--bad);border:1.5px solid var(--bad);text-decoration:line-through}
+.brk{display:flex;align-items:center;gap:10px;margin:10px 0 10px 70px;color:var(--bad);font:700 16px var(--sans)}
+.bcnote{display:flex;flex-direction:column;gap:20px;justify-content:center}
+.bcnote .big{font:600 31px/1.35 var(--display);color:var(--ink)}
+.bcnote .big em{color:var(--bark);font-style:italic}
+.store{display:flex;gap:16px;align-items:flex-start;background:var(--cream);border:1px solid var(--line);border-radius:18px;padding:22px 24px}
+.store svg{flex:none}
+.store b{font-size:19px;color:var(--ink);display:block;margin-bottom:4px}
+.store span{font-size:18px;color:var(--body);line-height:1.45}
+
+/* merkle */
+.merk{display:grid;grid-template-columns:1fr 1fr;gap:64px;flex:1;align-items:center;margin-top:6px}
+.fun{display:flex;flex-direction:column;align-items:center;gap:10px}
+.hrow{display:flex;gap:10px}
+.hchip{font:600 14px var(--mono);background:var(--cream);border:1px solid var(--line);color:var(--bark);border-radius:8px;padding:7px 11px}
+.down{color:var(--quill);font-size:20px;line-height:.6}
+.rootchip{font:700 17px var(--mono);color:#fff;background:var(--bark);border-radius:12px;padding:13px 24px;box-shadow:0 10px 24px rgba(92,46,23,.3)}
+.timeline{margin-top:30px;display:flex;align-items:center}
+.tl{flex:1;text-align:center;position:relative}
+.tl .nd{width:54px;height:54px;border-radius:50%;margin:0 auto 10px;display:grid;place-items:center;background:var(--cream);border:2px solid var(--line)}
+.tl.hot .nd{border-color:var(--quill);background:var(--quill-soft)}
+.tl b{font-size:17px;color:var(--ink);display:block}
+.tl span{font-size:16px;color:var(--muted)}
+.tl::before{content:"";position:absolute;top:27px;left:-50%;width:100%;height:2px;background:var(--line)}
+.tl:first-child::before{display:none}
+
+/* verdicts + close */
+.ver{display:grid;grid-template-columns:1fr 1fr 1fr;gap:22px;margin-top:44px}
+.vcard{border-radius:22px;padding:36px;border:1px solid var(--line);background:var(--cream)}
+.vcard .ic{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;margin-bottom:20px}
+.vcard h3{font:700 29px var(--display);margin-bottom:12px}
+.vcard ul{list-style:none}
+.vcard li{font:400 18.5px/1.5 var(--sans);color:var(--body);padding:4px 0 4px 24px;position:relative}
+.vcard li::before{content:"";position:absolute;left:4px;top:14px;width:8px;height:8px;border-radius:50%;background:currentColor;opacity:.5}
+.vAUTHENTIC .ic{background:var(--ok-bg)} .vAUTHENTIC h3{color:var(--ok)}
+.vPENDING .ic{background:var(--warn-bg)} .vPENDING h3{color:var(--warn)}
+.vTAMPERED .ic{background:var(--bad-bg)} .vTAMPERED h3{color:var(--bad)}
+.closeband{
+  margin-top:auto;background:var(--bark-deep);color:#F6EBDD;border-radius:20px;padding:30px 40px;
+  display:flex;align-items:center;gap:28px;position:relative;overflow:hidden;
+}
+.closeband::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(115deg,rgba(255,255,255,.025) 0 2px,transparent 2px 60px)}
+.closeband .n{font:900 58px/1 var(--display);color:var(--quill);position:relative}
+.closeband div{position:relative}
+.closeband b{font:700 23px var(--display);color:#fff;display:block;margin-bottom:4px}
+.closeband span{font:400 17.5px/1.4 var(--sans);color:#E5D5C0}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" rx="9" fill="#8B4A2B"/><path d="M17 7c-4 3.2-6.5 6.4-6.5 10a6.5 6.5 0 0 0 13 0c0-3.6-2.5-6.8-6.5-10Z" fill="#F7E8D2"/><path d="M17 11v12" stroke="#8B4A2B" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <div><b>Cinnamon Trace</b><span>traceable cinnamon · plot to purchase</span></div>
+  </div>
+  <div class="hctrl">
+    <button class="hbtn" id="fs">⛶ Fullscreen</button>
+    <div id="counter">01 / 08</div>
+  </div>
+</header>
+
+<div id="stageWrap"><div id="stage">
+
+  <!-- ======== 1 · WHY ======== -->
+  <section class="slide active" data-slide="1">
+    <span class="kicker"><span class="dotmark"></span>Why traceability?</span>
+    <h1 class="t">"Ceylon cinnamon" sells. <em>But who proves it?</em></h1>
+    <div class="pts">
+      <div class="pt"><span class="n">1</span><div><div class="t">Cinnamon is graded by origin — and origin is easy to fake</div><div class="d">Cassia is regularly sold as true Ceylon cinnamon. The buyer has <b>no way to tell</b> from the bag.</div></div></div>
+      <div class="pt"><span class="n">2</span><div><div class="t">The chain between farm and store is invisible</div><div class="d">A harvest passes through many hands. Once mixed and relabeled, <b>its story is lost</b> — nobody can say which plot it came from.</div></div></div>
+      <div class="pt"><span class="n">3</span><div><div class="t">Honest farmers don't capture the value they create</div><div class="d">Buyers pay premiums for verified origin — but without proof, <b>the premium never reaches the farmer.</b></div></div></div>
+      <div class="pt leaf"><span class="n">✓</span><div><div class="t">The gap: proof that travels with the product</div><div class="d">We need origin, custody and handling — <b>carried on the batch itself</b>, impossible to fake, checkable by anyone.</div></div></div>
+    </div>
+    <div class="footer-strip"><span>01 — Why</span><span class="rule"></span><span>Cinnamon Trace</span></div>
+  </section>
+
+  <!-- ======== 2 · WHAT: FUNCTIONALITY ======== -->
+  <section class="slide" data-slide="2">
+    <span class="kicker"><span class="dotmark"></span>What we built · functionality</span>
+    <h1 class="t">One platform, the whole journey.</h1>
+    <div class="pts2">
+      <div class="pt"><span class="n">1</span><div><div class="t">One app — five roles</div><div class="d">Farmer, collector, processor (two stages), exporter. <b>Same app, acting-as-role switching</b> for multi-role accounts.</div></div></div>
+      <div class="pt"><span class="n">2</span><div><div class="t">Plot-to-batch linking</div><div class="d">Farmer pins the plot with <b>GPS</b>; every batch from that plot carries the coordinates.</div></div></div>
+      <div class="pt"><span class="n">3</span><div><div class="t">Offline harvest logging</div><div class="d">Batch numbers are <b>generated on the phone</b> — a harvest is logged with zero signal, QR ready instantly.</div></div></div>
+      <div class="pt"><span class="n">4</span><div><div class="t">QR custody handovers</div><div class="d">Sale or handoff, scan-to-transfer, <b>accepted in the receiver's inbox</b> — custody never moves without a record.</div></div></div>
+      <div class="pt"><span class="n">5</span><div><div class="t">Processing with yield tracking</div><div class="d">Drying/grinding weights recorded; stage tags (<code class="mono">/P1</code>, <code class="mono">/P2</code>) attach to the number; renaming allowed — <b>origin link never breaks.</b></div></div></div>
+      <div class="pt"><span class="n">6</span><div><div class="t">Export lots</div><div class="d">Many batches merge into <b>one container, one QR</b> — the buyer sees every farm inside.</div></div></div>
+      <div class="pt"><span class="n">7</span><div><div class="t">Public verification</div><div class="d">Anyone scans the QR: <b>origin map, custody timeline, tamper verdict</b> — in one second, no app needed.</div></div></div>
+      <div class="pt leaf"><span class="n">✓</span><div><div class="t">Tamper-evident by design</div><div class="d">Every event is <b>hash-chained</b>; nightly Bitcoin anchoring makes history unrewriteable.</div></div></div>
+    </div>
+  </section>
+
+  <!-- ======== 3 · CUSTODY FLOW ======== -->
+  <section class="slide" data-slide="3">
+    <span class="kicker"><span class="dotmark"></span>How custody flows</span>
+    <h1 class="t">Five hands, one unbroken thread.</h1>
+    <div class="route">
+      <svg id="routeSvg" viewBox="0 0 1728 300" fill="none">
+        <path d="M170 80 C 420 -10, 560 180, 830 90 S 1240 -10, 1480 110 S 1620 200, 1560 230" stroke="#D98E32" stroke-width="3.5" stroke-dasharray="2 14" stroke-linecap="round"/>
+        <circle cx="170" cy="80" r="10" fill="#8B4A2B"/><circle cx="530" cy="50" r="10" fill="#8B4A2B"/>
+        <circle cx="880" cy="85" r="10" fill="#8B4A2B"/><circle cx="1250" cy="95" r="10" fill="#8B4A2B"/>
+        <circle cx="1590" cy="210" r="10" fill="#4C7A34"/>
+      </svg>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:18px;margin-top:-10px">
+        <div class="rnode" style="justify-self:start">
+          <div class="rn-h"><span class="n">1</span><b>Farmer</b></div>
+          <ul><li>Pins the plot, logs the harvest</li><li>Number minted on-device</li></ul>
+        </div>
+        <div class="rnode" style="justify-self:start;margin-top:8px">
+          <div class="rn-h"><span class="n">2</span><b>Collector</b></div>
+          <ul><li>Buys and carries</li><li>Number unchanged</li></ul>
+        </div>
+        <div class="rnode" style="justify-self:start;margin-top:2px">
+          <div class="rn-h"><span class="n">3</span><b>Processors</b></div>
+          <ul><li>Peeling · quilling · grinding</li><li>Yield + stage tags recorded</li></ul>
+        </div>
+        <div class="rnode" style="justify-self:start;margin-top:10px">
+          <div class="rn-h"><span class="n">4</span><b>Exporter</b></div>
+          <ul><li>Merges batches into a lot</li><li>Shipment details attached</li></ul>
+        </div>
+        <div class="rnode" style="justify-self:start;margin-top:18px">
+          <div class="rn-h"><span class="n" style="background:var(--leaf)">5</span><b>Buyer</b></div>
+          <ul><li>Scans the package QR</li><li>Full story in one second</li></ul>
+        </div>
+      </div>
+      <p class="sub" style="margin-top:34px;max-width:1500px">Between every pair of hands: a <b>QR scan + acceptance</b> on both sides. Each event is sealed into the chain the moment it happens.</p>
+    </div>
+  </section>
+
+  <!-- ======== 4 · OFFLINE FIRST ======== -->
+  <section class="slide" data-slide="4">
+    <span class="kicker"><span class="dotmark"></span>Built for the field</span>
+    <h1 class="t">Designed for the field. <em>Offline by default.</em></h1>
+    <div class="offl" style="margin-top:10px">
+      <div class="phone">
+        <div class="scr">
+          <div class="bar"><b>Cinnamon Trace</b><span style="font-size:12.5px;opacity:.8">● ○ ○ no service</span></div>
+          <div class="bodyc">
+            <div class="pcard"><div class="h"><span class="no">GM-172-01-2026-FM-A-T</span><span class="st" style="color:var(--leaf)">HARVESTED</span></div>120.5 kg · Trees · Plot pinned ✓</div>
+            <div class="pcard"><div class="h"><span class="no">GM-172-02-2026-FM-A-T</span><span class="st" style="color:var(--leaf)">HARVESTED</span></div>98.0 kg · Quills · Plot pinned ✓</div>
+            <div class="queued"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#92400E" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5M12 16.5v.5"/><circle cx="12" cy="12" r="9"/></svg><span><b>2 events queued</b> — will sync automatically</span></div>
+            <div class="pcard" style="opacity:.55"><div class="h"><span class="no">GM-171-07-2026-FM-B-Q</span><span class="st" style="color:var(--leaf)">SYNCED ✓</span></div>yesterday · 76.5 kg</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="step">
+          <div class="num">1</div>
+          <div><b>Saved on the phone first</b><span>A real SQLite database on the device holds every harvest, sale and acceptance while offline.</span></div>
+        </div>
+        <div class="step">
+          <div class="num">2</div>
+          <div><b>Queued, not blocked</b><span>Writes enter an outbox — like WhatsApp's clock: visible locally, sent when the network returns.</span></div>
+        </div>
+        <div class="step">
+          <div class="num">3</div>
+          <div><b>Sync survives the ugly cases</b><span>Retries with backoff; idempotency keys prevent double-sales; number collisions self-heal.</span></div>
+        </div>
+        <div class="step">
+          <div class="num" style="background:#E9F5EC;color:var(--leaf)">✓</div>
+          <div><b>QR exists immediately</b><span>Number and QR are valid the moment the harvest is saved — label the bag at the farm gate.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======== 5 · THE NUMBER ======== -->
+  <section class="slide" data-slide="5">
+    <span class="kicker"><span class="dotmark"></span>The batch number</span>
+    <h1 class="t">A number that tells the whole story.</h1>
+    <div class="anat">
+      <div class="segs">
+        <div class="seg" style="background:var(--bark);color:#fff"><div class="v">GM</div><div class="l">District · Galle</div></div>
+        <div class="seg" style="background:var(--quill-soft);color:var(--bark)"><div class="v">172</div><div class="l">Julian day</div></div>
+        <div class="seg" style="background:var(--quill-soft);color:var(--bark)"><div class="v">01</div><div class="l">Batch # that day</div></div>
+        <div class="seg" style="background:var(--quill-soft);color:var(--bark)"><div class="v">2026</div><div class="l">Year</div></div>
+        <div class="seg" style="background:var(--leaf);color:#fff"><div class="v">FM-A</div><div class="l">Farmer code</div></div>
+        <div class="seg" style="background:var(--quill);color:#fff"><div class="v">T</div><div class="l">Trees · quills</div></div>
+        <div class="slash">/</div>
+        <div class="seg" style="border:2px dashed var(--bark);color:var(--bark)"><div class="v">P2</div><div class="l">Processing stage</div></div>
+      </div>
+      <p class="sub" style="margin-top:22px;font-size:23px;max-width:1550px">Processors append stage tags — <b>P1 may never invent a number; P2 may give its own</b>, and the farm link is kept either way. Old numbers never die: every former number still resolves.</p>
+    </div>
+    <div class="merge">
+      <div>
+        <div class="mcard" style="margin-bottom:12px">GM-172-01-2026-FM-A-T<small>45 kg · plot 6.05°N 80.22°E</small></div>
+        <div class="mcard" style="margin-bottom:12px">GM-173-04-2026-FM-D-T<small>60 kg · plot 6.12°N 80.25°E</small></div>
+        <div class="mcard">GM-175-01-2026-FM-C-Q<small>52 kg · plot 6.02°N 80.19°E</small></div>
+      </div>
+      <div class="mid">
+        <svg width="70" height="46" viewBox="0 0 70 46"><path d="M4 23h50m0 0-12-10m12 10-12 10" stroke="#D98E32" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+        <span class="pill bark" style="margin-top:6px">merge</span>
+      </div>
+      <div class="mcard" style="background:var(--bark-deep);color:#F6EBDD;border:0">
+        EX-041-2026-EXP-A<small style="color:#D8C4A8">one container · 157 kg · buyer: Spice GmbH · one QR lists every farm inside</small>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======== 6 · BLOCKCHAIN I ======== -->
+  <section class="slide" data-slide="6">
+    <span class="kicker"><span class="dotmark"></span>Integrity · part 1 — in our database</span>
+    <h1 class="t">Receipts, stapled together with math.</h1>
+    <div class="bc">
+      <div class="chain">
+        <div class="receipt"><div class="ev"><div class="t">Harvested</div><div class="s">GM-172… · 120.5 kg</div></div><span class="hash">a91f…2c</span><span class="ph">event #1</span></div>
+        <div class="staple"></div>
+        <div class="receipt"><div class="ev"><div class="t">Sold to collector</div><div class="s">QR handoff · accepted</div></div><span class="hash">3c07…9d</span><span class="ph">← made from a91f…2c</span></div>
+        <div class="staple"></div>
+        <div class="receipt"><div class="ev"><div class="t">Processed</div><div class="s">120.5 → 98.0 kg</div></div><span class="hash">77be…41</span><span class="ph">← made from 3c07…9d</span></div>
+        <div class="staple"></div>
+        <div class="receipt"><div class="ev"><div class="t">Exported</div><div class="s">into lot EX-041-2026</div></div><span class="hash">f4d1…08</span><span class="ph">← made from 77be…41</span></div>
+        <div class="brk">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#991B1B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17v.5"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+          edit "120.5 kg" in the database → its fingerprint changes → every fingerprint after it snaps.
+        </div>
+        <div class="receipt broken"><div class="ev"><div class="t">Processed</div><div class="s">fingerprint no longer matches</div></div><span class="hash">77be…41</span><span style="font:700 15px var(--sans);color:var(--bad)">TAMPERED ✕</span></div>
+      </div>
+      <div class="bcnote">
+        <div class="big">Each record's fingerprint is <em>made from</em> the previous record's fingerprint. That's the whole trick — and it's enough&nbsp;protection.</div>
+        <div class="store">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#8B4A2B" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5V12c0 1.7 3.6 3 8 3s8-1.3 8-3V5.5"/><path d="M4 12v6.5c0 1.7 3.6 3 8 3s8-1.3 8-3V12"/></svg>
+          <div><b>Where it lives</b><span>An append-only <code class="mono">batch_events</code> ledger in PostgreSQL. Rows are never updated or deleted — new facts are new rows.</span></div>
+        </div>
+        <div class="store">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#4C7A34" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>
+          <div><b>Who can check it</b><span>Anyone. Recomputing the fingerprints needs no special access — the verify page does it on every scan.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======== 7 · BLOCKCHAIN II ======== -->
+  <section class="slide" data-slide="7">
+    <span class="kicker"><span class="dotmark"></span>Integrity · part 2 — the public witness</span>
+    <h1 class="t">And at midnight, Bitcoin notarizes the day.</h1>
+    <div class="merk">
+      <div class="fun">
+        <div class="hrow"><span class="hchip">a91f…2c</span><span class="hchip">3c07…9d</span><span class="hchip">77be…41</span><span class="hchip">f4d1…08</span><span class="hchip">…</span></div>
+        <span class="down">▼</span>
+        <div class="hrow"><span class="hchip">pair-wise combined…</span></div>
+        <span class="down">▼</span>
+        <div class="rootchip">merkle root · 9ab7…e3 — one line for the whole day</div>
+        <span class="down">▼</span>
+        <div class="store" style="width:100%">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#D98E32" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8" transform="rotate(45 12 12)"/></svg>
+          <div><b>Written into Bitcoin via OpenTimestamps</b><span>A free public protocol bundles thousands of companies' proofs into one transaction. No wallets, no coins, no gas fees.</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="store" style="border:0;background:transparent;padding:0 0 14px">
+          <div style="font:600 29px/1.4 var(--display);color:var(--ink)">Why bother? Because our server could lie. <em style="color:var(--bark)">Bitcoin's ledger can't.</em></div>
+        </div>
+        <div class="store">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#8B4A2B" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="2.5"/><path d="M8 21h8M12 17v4"/></svg>
+          <div><b>What is stored there</b><span>Not the cinnamon data — just one 32-byte fingerprint per day, permanent and public, inside an ordinary Bitcoin block.</span></div>
+        </div>
+        <div class="timeline">
+          <div class="tl"><div class="nd"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8B4A2B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.6-7-10a7 7 0 0 1 14 0c0 5.4-7 10-7 10Z"/><circle cx="12" cy="11" r="2.4"/></svg></div><b>Day</b><span>events hash-chain<br>as they happen</span></div>
+          <div class="tl hot"><div class="nd"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D98E32" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></div><b>00:00</b><span>nightly job seals<br>the merkle root</span></div>
+          <div class="tl"><div class="nd"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4C7A34" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><b>~24 h</b><span>Bitcoin block confirms<br>→ verdict turns green</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======== 8 · VERDICTS + CLOSE ======== -->
+  <section class="slide" data-slide="8">
+    <span class="kicker"><span class="dotmark"></span>Verification · every scan gets a verdict</span>
+    <h1 class="t">Trust, but verify — <em>mathematically.</em></h1>
+    <div class="ver">
+      <div class="vcard vAUTHENTIC">
+        <div class="ic"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#166534" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <h3>Authentic</h3>
+        <ul>
+          <li>Hash chain recomputes perfectly</li>
+          <li>Bitcoin timestamp confirmed</li>
+          <li>Origin story is proven</li>
+        </ul>
+      </div>
+      <div class="vcard vPENDING">
+        <div class="ic"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#92400E" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+        <h3>Pending</h3>
+        <ul>
+          <li>Chain intact, record live</li>
+          <li>Bitcoin stamp comes tonight</li>
+          <li>Normal for fresh harvests</li>
+        </ul>
+      </div>
+      <div class="vcard vTAMPERED">
+        <div class="ic"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#991B1B" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></div>
+        <h3>Tampered</h3>
+        <ul>
+          <li>A record was edited retroactively</li>
+          <li>Fingerprints no longer match</li>
+          <li>The system names the broken event</li>
+        </ul>
+      </div>
+    </div>
+    <div class="closeband">
+      <span class="n">78</span>
+      <div><b>automated tests green · full journey verified against the live cloud database</b>
+      <span>Register → harvest → sell → process → renumber → merge → export → public verify. Working software — not a concept.</span></div>
+      <span class="n" style="font-size:44px">🌿</span>
+      <div><b>Sri Lanka grows the best cinnamon on Earth.</b>
+      <span>Now anyone can prove it — with a scan.</span></div>
+    </div>
+  </section>
+
+</div></div>
+
+<footer>
+  <div class="fnav">
+    <button class="fbtn" id="prev">◀</button>
+    <button class="fbtn" id="next">▶</button>
+  </div>
+  <div id="dots"></div>
+  <div class="khint"><kbd>◀</kbd> <kbd>▶</kbd> navigate · <kbd>F</kbd> fullscreen</div>
+</footer>
+
+<script>
+(function(){
+  const N = 8;
+  const stage = document.getElementById('stage');
+  const wrap = document.getElementById('stageWrap');
+  const slides = [...document.querySelectorAll('.slide')];
+  const counter = document.getElementById('counter');
+  const dots = document.getElementById('dots');
+  let cur = 1;
+
+  function fit(){
+    const box = wrap.getBoundingClientRect();
+    const s = Math.min(box.width/1920, box.height/1080);
+    stage.style.setProperty('--s', s);
+  }
+  if (window.ResizeObserver) new ResizeObserver(fit).observe(wrap);
+  addEventListener('resize', fit);
+  fit();
+
+  for(let i=1;i<=N;i++){
+    const d=document.createElement('i');
+    if(i===1)d.classList.add('on');
+    d.onclick=()=>go(i);
+    dots.appendChild(d);
+  }
+
+  function go(n){
+    if(n<1||n>N)return;
+    cur=n;
+    slides.forEach(s=>s.classList.toggle('active', +s.dataset.slide===n));
+    [...dots.children].forEach((d,i)=>d.classList.toggle('on',i+1===n));
+    counter.textContent = String(n).padStart(2,'0')+' / '+String(N).padStart(2,'0');
+    try{localStorage.setItem('ct-deck2-slide',n)}catch(e){}
+  }
+  try{const s=+localStorage.getItem('ct-deck2-slide'); if(s>=1&&s<=N)cur=s}catch(e){}
+  go(cur);
+
+  const nx=()=>go(cur+1), pv=()=>go(cur-1);
+  document.getElementById('next').onclick=nx;
+  document.getElementById('prev').onclick=pv;
+  addEventListener('keydown',e=>{
+    if(['ArrowRight',' ','PageDown'].includes(e.key)){e.preventDefault();nx()}
+    else if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();pv()}
+    else if(e.key==='Home')go(1);
+    else if(e.key==='End')go(N);
+    else if(e.key==='f'||e.key==='F')fs();
+  });
+  function fs(){
+    if(!document.fullscreenElement)document.documentElement.requestFullscreen().catch(()=>{});
+    else document.exitFullscreen().catch(()=>{});
+  }
+  document.getElementById('fs').onclick=fs;
+})();
+</script>
+</body>
+</html>

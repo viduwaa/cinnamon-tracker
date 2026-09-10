@@ -24,7 +24,6 @@ This directory contains the presentation assets and rehearsal documentation prep
 2. **Keyboard Controls**:
    - `▶` / `Space` / `PageDown`: Next slide
    - `◀` / `PageUp`: Previous slide
-   - `S`: Toggle **Speaker Notes Drawer** (shows exact talking points & delivery cues)
    - `F`: Toggle **Fullscreen Mode** for projector display
    - `Home` / `End`: Jump to first or last slide
 
@@ -39,9 +38,9 @@ This directory contains the presentation assets and rehearsal documentation prep
 
 1. **The "Why"**:
    - **EUDR Compliance**: Mandates GPS plot coordinates for every agricultural import entering the EU. Cinnamon Trace guarantees 100% compliance out-of-the-box.
-   - **Protects Pure Ceylon Cinnamon**: Stops cheap, coumarin-laden Cassia counterfeiting and preserves Sri Lanka's 25% price premium.
-2. **The 5-Step Flow**:
-   - Simple, offline-capable 30-second mobile workflow: Farmer Pin ➔ Collector Handoff ➔ Processing Yield ➔ Exporter Merge ➔ 1-Second Public Verification.
+   - **Commercial Access**: Pre-clears customs and commands premium prices for certified Pure Ceylon Cinnamon.
+2. **The Operational Flow**:
+   - Simple mobile workflow: Farmer Pin ➔ Collector Handoff ➔ Processing Yield (`/process`) ➔ Exporter Merge (`/lots/new`) ➔ 1-Second Public Verification (`/verify`).
 3. **The Blockchain Architecture**:
    - **Zero Crypto Overhead**: No gas fees, no volatile tokens, and no farmer crypto wallets.
    - **Dual-Tier Protection**: SHA-256 local domino chain + Bitcoin public anchoring via OpenTimestamps.

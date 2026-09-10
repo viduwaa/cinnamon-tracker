@@ -108,6 +108,11 @@ export class AuthService {
     if (!user) {
       throw Errors.unauthorized("OTP_INVALID", "Invalid code");
     }
+    // Suspended users (admin console) cannot sign in; existing tokens die at
+    // their natural expiry but every token refresh requires a fresh login.
+    if ((user as { is_active?: boolean | null }).is_active === false) {
+      throw Errors.forbidden("ACCOUNT_SUSPENDED", "This account has been suspended");
+    }
 
     // Dev bypass: when OTP_BYPASS_CODE is set, that fixed code verifies any
     // registered mobile without touching otp_codes. Ignored in production —
